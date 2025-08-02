@@ -1,0 +1,21 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Werewolf Game",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"--live-stream",
+				"--name",
+				"llm",
+				"python",
+				"main.py"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
