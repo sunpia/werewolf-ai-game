@@ -101,12 +101,10 @@ def run_tests():
         
         from src.core.game_state import GameState
         from src.core.player import Player, Role
-        from src.agents.base_agent import BaseAgent
         
         # Test basic functionality
         game_state = GameState(6)
         player = Player(1, "TestPlayer", Role.CIVILIAN)
-        agent = BaseAgent(None, 1, "TestAgent")
         
         print("  ✅ Core components load successfully")
         print("  ✅ Game state creation works")

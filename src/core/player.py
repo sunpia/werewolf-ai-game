@@ -20,7 +20,7 @@ class GamePhase(Enum):
 class Player:
     """Represents a player in the Werewolf game."""
     
-    def __init__(self, player_id: int, name: str, role: Role):
+    def __init__(self, id: int, name: str, role: Role):
         """Initialize a player.
         
         Args:
@@ -28,7 +28,7 @@ class Player:
             name: Display name for the player
             role: The player's role in the game
         """
-        self.player_id = player_id
+        self.id = id
         self.name = name
         self.role = role
         self.is_alive = True
@@ -59,7 +59,7 @@ class Player:
         
     def __str__(self) -> str:
         status = "Alive" if self.is_alive else "Dead"
-        return f"Player {self.player_id} ({self.name}) - {self.role.value} - {status}"
+        return f"Player {self.id} ({self.name}) - {self.role.value} - {status}"
         
     def __repr__(self) -> str:
         return self.__str__()

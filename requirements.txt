@@ -3,7 +3,7 @@ aiohttp @ file:///home/conda/feedstock_root/build_artifacts/aiohttp_175380496243
 aiosignal @ file:///home/conda/feedstock_root/build_artifacts/aiosignal_1751626463503/work
 annotated-types @ file:///home/conda/feedstock_root/build_artifacts/annotated-types_1733247046149/work
 anthropic==0.60.0
-anyio @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_anyio_1742243108/work
+anyio==3.7.1
 asttokens @ file:///home/conda/feedstock_root/build_artifacts/asttokens_1733250440834/work
 async-timeout @ file:///home/conda/feedstock_root/build_artifacts/async-timeout_1691763562544/work
 attrs @ file:///home/conda/feedstock_root/build_artifacts/attrs_1741918516150/work
@@ -27,8 +27,10 @@ exceptiongroup @ file:///home/conda/feedstock_root/build_artifacts/exceptiongrou
 executing @ file:///home/conda/feedstock_root/build_artifacts/executing_1745502089858/work
 fabric==3.2.2
 Faker==37.5.3
+fastapi==0.104.1
 flake8==7.3.0
 frozenlist @ file:///home/conda/feedstock_root/build_artifacts/frozenlist_1752167142843/work
+gevent==25.5.1
 google-api-core==2.25.1
 google-auth==2.40.3
 google-cloud-aiplatform==1.106.0
@@ -48,6 +50,7 @@ h11 @ file:///home/conda/feedstock_root/build_artifacts/h11_1745526374115/work
 h2 @ file:///home/conda/feedstock_root/build_artifacts/h2_1738578511449/work
 hpack @ file:///home/conda/feedstock_root/build_artifacts/hpack_1737618293087/work
 httpcore @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_httpcore_1745602916/work
+httptools==0.6.4
 httpx @ file:///home/conda/feedstock_root/build_artifacts/httpx_1733663348460/work
 httpx-sse @ file:///home/conda/feedstock_root/build_artifacts/httpx-sse_1750777478591/work
 hyperframe @ file:///home/conda/feedstock_root/build_artifacts/hyperframe_1737618333194/work
@@ -113,6 +116,7 @@ PySocks @ file:///home/conda/feedstock_root/build_artifacts/pysocks_173321723672
 pytest==8.4.1
 python-dateutil==2.9.0.post0
 python-dotenv @ file:///croot/python-dotenv_1745610241282/work
+python-multipart==0.0.6
 PyYAML @ file:///home/conda/feedstock_root/build_artifacts/pyyaml_1737454647378/work
 regex @ file:///croot/regex_1736540786412/work
 requests @ file:///home/conda/feedstock_root/build_artifacts/requests_1749498106507/work
@@ -124,6 +128,7 @@ six==1.17.0
 sniffio @ file:///home/conda/feedstock_root/build_artifacts/sniffio_1733244044561/work
 SQLAlchemy @ file:///home/conda/feedstock_root/build_artifacts/sqlalchemy_1753804630413/work
 stack_data @ file:///home/conda/feedstock_root/build_artifacts/stack_data_1733569443808/work
+starlette==0.27.0
 tenacity==8.5.0
 tiktoken @ file:///croot/tiktoken_1748479152668/work
 tqdm @ file:///croot/tqdm_1738943501192/work
@@ -133,11 +138,17 @@ typing_extensions @ file:///home/conda/feedstock_root/build_artifacts/bld/rattle
 typing_inspect @ file:///work/perseverance-python-buildout/croot/typing_inspect_1728412657336/work
 tzdata==2025.2
 urllib3 @ file:///home/conda/feedstock_root/build_artifacts/urllib3_1750271362675/work
+uvicorn==0.24.0
+uvloop==0.21.0
 validators==0.35.0
+watchfiles==1.1.0
 wcwidth @ file:///home/conda/feedstock_root/build_artifacts/wcwidth_1733231326287/work
-websockets==15.0.1
+websocket==0.2.1
+websockets==12.0
 wheel==0.45.1
 wrapt==1.17.2
 xxhash @ file:///home/conda/feedstock_root/build_artifacts/python-xxhash_1740594782459/work
 yarl @ file:///home/conda/feedstock_root/build_artifacts/yarl_1749554822108/work
+zope.event==5.1.1
+zope.interface==7.2
 zstandard==0.23.0
