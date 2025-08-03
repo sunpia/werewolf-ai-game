@@ -118,6 +118,7 @@ class AdvancedAgent:
                 f"Current Game State: {public_info}\n"
             )
         promote = init_prompt()
+        
         list(self.graph.stream({"messages": [{"role": "user", "content": promote}]}, self.config))
 
     def step(self, instruction: str) -> str:

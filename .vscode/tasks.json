@@ -2,7 +2,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Run Werewolf Game",
+			"label": "Start Backend Server",
 			"type": "shell",
 			"command": "conda",
 			"args": [
@@ -11,10 +11,22 @@
 				"--name",
 				"llm",
 				"python",
-				"main.py"
+				"app.py"
 			],
 			"group": "build",
-			"isBackground": false,
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Frontend Dev Server",
+			"type": "shell",
+			"command": "npm",
+			"args": ["start"],
+			"options": {
+				"cwd": "${workspaceFolder}/frontend"
+			},
+			"group": "build",
+			"isBackground": true,
 			"problemMatcher": []
 		}
 	]

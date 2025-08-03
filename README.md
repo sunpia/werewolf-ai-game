@@ -10,6 +10,7 @@ A sophisticated multi-agent implementation of the classic Werewolf/Mafia game fe
 - **Role-Based Agents**: Wolves, Civilians, and God (moderator) with distinct behaviors and personalities
 - **Dynamic Terminal Output**: Real-time game progression with clear phase transitions and voting results
 - **Realistic Player Names**: Randomly generated diverse character names for immersive gameplay
+- **🌐 Web Interface**: Modern React frontend for spectating AI games ([see web version](README_FULLSTACK.md))
 
 ### 🧠 Advanced AI Features
 - **Personality-Driven Agents**: Each AI has unique speaking patterns and decision-making styles
@@ -42,9 +43,21 @@ OPENAI_MODEL=gpt-4-turbo
 
 ### 3. Run the Game
 
+**Terminal Version:**
 ```bash
 python main.py
 ```
+
+**Web Interface:**
+```bash
+# Start backend
+python app.py
+
+# Start frontend (in another terminal)
+cd frontend && npm install && npm start
+```
+
+📖 **[Full Web Interface Guide](README_FULLSTACK.md)** - Complete setup for the React-based spectator interface.
 
 The game will prompt you to:
 1. Enter the number of players (6-15)
@@ -133,6 +146,14 @@ Voting is enabled—get to it.
 - **Interactive Mode**: Human player integration with AI agents
 - **Game Analytics**: Post-game analysis and strategy insights
 - **Multiple Game Variants**: Different rule sets and special roles
+
+## 🌐 Web Interface
+
+Want to watch AI agents play through a modern web interface? Check out our **[Web Version](README_FULLSTACK.md)** featuring:
+- Real-time spectator mode with live AI conversations
+- Beautiful React interface optimized for watching games
+- Server-Sent Events for instant updates
+- Modern UI with player stats and game analytics
 
 ---
 
