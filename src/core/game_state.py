@@ -17,7 +17,7 @@ class GameState:
         Raises:
             ValueError: If num_players is not between 6 and 15
         """
-        if num_players < 3 or num_players > 15:
+        if num_players < 6 or num_players > 15:
             raise ValueError("Number of players must be between 6 and 15")
             
         self.num_players = num_players
@@ -29,8 +29,6 @@ class GameState:
         self.night_kill_target: Optional[str] = None
         self.voting_enabled = False
         self._god_player: Optional[Player] = None
-        self._wolves: List[Player] = []
-        self._civilians: List[Player] = []
         self._speaker_idx: int = 0
         self._initialize_players()
         
@@ -53,10 +51,6 @@ class GameState:
             self.players[player_name] = Player(i, player_name, roles[i])
             if roles[i] == Role.GOD:
                 self._god_player = self.players[player_name]
-            elif roles[i] == Role.WOLF:
-                self._wolves.append(self.players[player_name])
-            else:
-                self._civilians.append(self.players[player_name])
 
         # Set initial speaking order (alive players only)
         self.update_speaking_order()
@@ -90,12 +84,12 @@ class GameState:
     @property
     def wolves(self) -> List[Player]:
         """Get all wolf players."""
-        return self._wolves
+        return [player for player in self.players.values() if player.is_wolf()]
 
     @property
     def civilians(self) -> List[Player]:
         """Get all civilian players."""
-        return self._civilians
+        return [player for player in self.players.values() if player.is_civilian()]
 
     def get_next_speaker(self) -> Optional[Player]:
         """Get the next player who should speak."""

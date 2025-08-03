@@ -4,10 +4,6 @@ from langchain.llms.base import LLM
 from typing import List
 from enum import Enum, auto
 
-class AgentType(Enum):
-    GOLD = auto()
-    WOLF = auto()
-    CIVILIAN = auto()
 
 class BaseAgent:
     """Base class for all game agents."""

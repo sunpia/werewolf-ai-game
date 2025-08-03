@@ -1,8 +1,7 @@
 """Agent package for Werewolf game."""
 
-from .base_agent import BaseAgent
-from .wolf_agent import WolfAgent
-from .civilian_agent import CivilianAgent
+from .advanced_agent import AdvancedAgent
+from .god_advanced_agent import GodAdvancedAgent
 from .god_agent import GodAgent
 
-__all__ = ["BaseAgent", "WolfAgent", "CivilianAgent", "GodAgent"]
+__all__ = ["BaseAgent", "AgentType", "AdvancedAgent", "GodAdvancedAgent", "GodAgent"]

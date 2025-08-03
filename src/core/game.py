@@ -4,21 +4,29 @@ import os
 import time
 import random
 from typing import Dict, List, Optional, Tuple
+from enum import Enum
 from colorama import init, Fore, Back, Style
 
 from langchain.chat_models import init_chat_model
-from langchain.schema import AIMessage
 from dotenv import load_dotenv
 
 from .game_state import GameState, GamePhase
 from .player import Player, Role
-from ..agents.wolf_agent import WolfAgent
-from ..agents.civilian_agent import CivilianAgent
-from ..agents.god_agent import GodAgent
-from src.agents import god_agent
+from ..agents.god_advanced_agent import GodAdvancedAgent
+from ..agents.advanced_agent import AdvancedAgent, AgentType
 
 # Initialize colorama for colored output
 init(autoreset=True)
+
+class EventType(Enum):
+    """Types of events that can occur in the game."""
+    PUBLIC = "public"                   # Events visible to all living players
+    WOLF_PRIVATE = "wolf_private"       # Events only wolves can see
+    ELIMINATION = "elimination"         # Player elimination events
+    GAME_STATE = "game_state"          # General game state changes
+    NIGHT_KILL = "night_kill"          # Night kill results
+    DAY_TRANSITION = "day_transition"   # Day/night phase transitions
+    DAY_NUMBER_CHANGE = "day_number_change"  # Day counter changes
 
 class WerewolfGame:
     """Main game orchestrator for the Werewolf game."""
@@ -33,24 +41,34 @@ class WerewolfGame:
         """
         self.game_state = GameState(num_players)
         self.llm = init_chat_model(openai_api_key=api_key, model=model, temperature=0.7, max_tokens=200)
+        self.api_key = api_key
+        self.model = model
         
         self._initialize_agents()
 
     def _initialize_agents(self) -> None:
         """Initialize all agents based on player roles."""
-        wolves: List[Player] = []
 
         for player_id, player in self.game_state.players.items():
             if player.is_wolf():
-                player.agent = WolfAgent(self.llm, player_id, player.name)
-                wolves.append(player)
+                player.agent = AdvancedAgent(self.api_key, self.model, player.name, agent_type=AgentType.WOLF)
             elif player.is_civilian():
-                player.agent = CivilianAgent(self.llm, player_id, player.name)
+                player.agent = AdvancedAgent(self.api_key, self.model, player.name, agent_type=AgentType.VILLAGERS)
             elif player.is_god():
-                player.agent = GodAgent(self.llm, player_id, player.name)
+                player.agent = GodAdvancedAgent(self.api_key, self.model, player.name)
 
         print(f"\n{Fore.CYAN}=== Game Initialized ==={Style.RESET_ALL}")
         self._print_setup_info()
+        
+        # Initialize agents with game state
+        public_info = self.game_state.get_public_game_state()
+        for player in self.game_state.players.values():
+            if not player.is_god():
+                player.agent.start(public_info)
+            else:
+                # Initialize god with special god-specific information
+                god_info = f"You are the game moderator. {public_info}"
+                player.agent.start(god_info)
 
     def _print_setup_info(self) -> None:
         """Print game setup information."""
@@ -63,9 +81,14 @@ class WerewolfGame:
         print(f"{Fore.YELLOW}God: {god.name}")
         print(f"Total Players: {len(self.game_state.players)}")
 
-    def _print_colored(self, message: AIMessage, player: Optional[Player] = None) -> None:
+    def _print_colored(self, message, player: Optional[Player] = None) -> None:
         """Print colored message based on player role."""
-        content = message.content
+        # Handle both AIMessage objects and strings
+        if hasattr(message, 'content'):
+            content = message.content
+        else:
+            content = str(message)
+            
         if player is None:
             print(f"{Fore.YELLOW}{content}{Style.RESET_ALL}")
         elif player.is_wolf():
@@ -77,11 +100,73 @@ class WerewolfGame:
         else:
             print(f"{content}")
 
+    def _distribute_event_to_agents(self, event: str, speaker: Optional[Player] = None, 
+                                   event_type: EventType = EventType.PUBLIC, context: str = "day") -> None:
+        """Distribute events to agents based on game context and visibility rules.
+        
+        Args:
+            event: The event message to distribute
+            speaker: The player who triggered the event (if any)
+            event_type: Type of event using EventType enum
+            context: Game context - "day", "night", "voting"
+        """
+        for player in self.game_state.players.values():
+            should_receive_event = False
+            modified_event = event
+            
+            # God player doesn't participate in agent events (they have their own logic)
+            if player.is_god():
+                continue
+                
+            # Determine if player should receive this event based on context and type
+            if event_type == EventType.PUBLIC:
+                # Public events visible to all living players
+                should_receive_event = player.is_alive
+                
+            elif event_type == EventType.WOLF_PRIVATE:
+                # Wolf private communication - only wolves can see
+                should_receive_event = player.is_alive and player.is_wolf()
+                
+            elif event_type in [EventType.ELIMINATION, EventType.GAME_STATE, 
+                               EventType.DAY_TRANSITION, EventType.DAY_NUMBER_CHANGE]:
+                # Game state changes visible to all players (alive and dead for meta info)
+                should_receive_event = True
+                
+            elif event_type == EventType.NIGHT_KILL:
+                # Night kill results visible to all in the morning
+                should_receive_event = True
+                
+            # Modify event based on perspective
+            if should_receive_event and speaker:
+                if player.name == speaker.name:
+                    # First person perspective for the speaker
+                    if "said:" in event:
+                        modified_event = event.replace(f"{speaker.name} said:", "You said:")
+                    elif "voted for" in event:
+                        modified_event = event.replace(f"{speaker.name} voted for", "You voted for")
+                    else:
+                        modified_event = event.replace(speaker.name, "You", 1)
+                        
+            # Add event to agent if they should receive it
+            if should_receive_event:
+                player.agent.add_event(modified_event)
+
     def run_day_phase(self) -> None:
         """Run the day phase."""
         print(f"\n{Back.YELLOW}{Fore.BLACK} === DAY {self.game_state.day_count} === {Style.RESET_ALL}")
-        god_agent: GodAgent = self.game_state.god_player.agent
+        god_agent: GodAdvancedAgent = self.game_state.god_player.agent
 
+        # Distribute day number change event
+        day_number_event = f"Day {self.game_state.day_count} has arrived."
+        self._distribute_event_to_agents(day_number_event, None, EventType.DAY_NUMBER_CHANGE, "day")
+        
+        # Distribute day transition event (only if not the first day)
+        if self.game_state.day_count > 1:
+            day_transition_event = f"Night has ended. Day phase begins. All players wake up."
+            self._distribute_event_to_agents(day_transition_event, None, EventType.DAY_TRANSITION, "day")
+        # Distribute day start event to all agents
+        day_start_event = f"Day {self.game_state.day_count} begins. Current alive players: {', '.join([p.name for p in self.game_state.alive_players if not p.is_god()])}"
+        self._distribute_event_to_agents(day_start_event, None, EventType.GAME_STATE, "day")
         
         # God announces day start
         recent_events = "\n".join(self.game_state.game_history[-3:]) if self.game_state.game_history else "Game start"
@@ -118,49 +203,62 @@ class WerewolfGame:
                     
                 print(f"\n{Fore.CYAN}{speaker.name}'s turn to speak...{Style.RESET_ALL}")
                 
-                # Get agent speech
+                # Get agent speech using AdvancedAgent interface
                 agent = speaker.agent
-                game_context = self.game_state.game_history
-                speech = agent.speak(self.game_state.get_public_game_state(), game_context)
+                if speaker.is_god():
+                    # God agents work differently
+                    game_context = self.game_state.game_history
+                    speech = agent.speak(self.game_state.get_public_game_state(), game_context)
+                else:
+                    # Use AdvancedAgent step method
+                    instruction = f"It's your turn to speak. Current game state: {self.game_state.get_public_game_state()}. Share your thoughts about the game so far."
+                    speech_message = agent.step(instruction)
+                    speech = speech_message.content if hasattr(speech_message, 'content') else str(speech_message)
                 
                 self._print_colored(speech, speaker)
                 
-                # Add to all agents' memory
-                for player in self.game_state.players.values():
-                    if player.name != speaker.name:
-                        player.agent.add_to_memory(f"{speaker.name} said: {speech}")
-                    else:
-                        player.agent.add_to_memory(f"You said: {speech}")
+                # Distribute speech event to appropriate agents
+                speech_event = f"{speaker.name} said: {speech}"
+                self._distribute_event_to_agents(speech_event, speaker, EventType.PUBLIC, "day")
 
-                time.sleep(1)  # Brief pause for readability
+                time.sleep(5)  # Brief pause for readability
 
     def _run_voting_phase(self) -> None:
         """Run the voting phase."""
-        print(f"\n{Fore.CYAN}--- Voting Phase ---{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}--- Voting Phase ---")
         # Exclude the god from voting
         eligible_voters = [p for p in self.game_state.alive_players if not p.is_god()]
-        eligible_targets = eligible_voters.copy()
-        eligible_targets_name = [p.name for p in eligible_targets]
+        eligible_targets_name = [p.name for p in eligible_voters]
         
-        print(f"Eligible voters: {', '.join([f'{p.name}' for p in eligible_voters])}")
+        print(f"Eligible voters: {', '.join([f'{p.name}' for p in eligible_voters])}{Style.RESET_ALL}")
         voting_process = []
         god = self.game_state.god_player
-        god_agent: GodAgent = god.agent
+        god_agent: GodAdvancedAgent = god.agent
         
         # Collect votes
         for voter in eligible_voters:
             agent = voter.agent
-
-            vote_target = agent.vote(self.game_state.get_public_game_state(), str(voting_process), eligible_targets_name)
+            
+            # Use AdvancedAgent step method for voting
+            instruction = f"Voting phase: You must vote to eliminate one player, the decision should help you to win game. Current voting status: {str(voting_process)}. Chose the name and please only return the name from following list {', '.join(eligible_targets_name)}"
+            vote_message = agent.step(instruction)
+            vote_target = vote_message.content if hasattr(vote_message, 'content') else str(vote_message)
+            
+            # Extract just the player name from the response if needed
+            vote_target = vote_target.strip()
+            # Simple validation - if the response contains a valid target name, use it
+            for target in eligible_targets_name:
+                if target in vote_target:
+                    vote_target = target
+                    break
 
             self.game_state.vote_for_player(voter.name, vote_target)
             print(f"{voter.name} votes for {vote_target}")
             
-            # Add to memory
+            # Distribute voting event to all agents
             vote_msg = f"{voter.name} voted for {vote_target}"
             voting_process.append(vote_msg)
-            self.game_state.add_to_history(vote_msg)
-            agent.add_to_memory(vote_msg)
+            self._distribute_event_to_agents(vote_msg, voter, EventType.PUBLIC, "voting")
                 
         # Count votes and eliminate player
         eliminated_id, vote_counts = self.game_state.get_vote_results()
@@ -174,8 +272,7 @@ class WerewolfGame:
             
             elimination_msg = f"{eliminated_player.name} ({eliminated_player.role.value}) was eliminated by vote"
             self.game_state.add_to_history(elimination_msg)
-            for p in self.game_state.players.values():
-                p.agent.add_to_memory(elimination_msg)
+            self._distribute_event_to_agents(elimination_msg, None, EventType.ELIMINATION, "voting")
                 
         else:
             no_elimination_msg = "No one was eliminated (tie or no votes)"
@@ -188,12 +285,20 @@ class WerewolfGame:
         """Run the night phase."""
         print(f"\n{Back.BLUE}{Fore.WHITE} === NIGHT {self.game_state.day_count} === {Style.RESET_ALL}")
         god = self.game_state.god_player
-        god_agent: GodAgent = god.agent
+        god_agent: GodAdvancedAgent = god.agent
         
         self.game_state.switch_to_night()
         
+        # Distribute night transition event
+        night_transition_event = f"Day has ended. Night phase begins. Most players fall asleep."
+        self._distribute_event_to_agents(night_transition_event, None, EventType.DAY_TRANSITION, "night")
+        
+        # Distribute night start event to all agents
+        night_start_event = f"Night {self.game_state.day_count} begins. All players go to sleep except wolves."
+        self._distribute_event_to_agents(night_start_event, None, EventType.GAME_STATE, "night")
+        
         # God announces night start
-        alive_wolf_names = list(map(lambda wolf: wolf.name, self.game_state.alive_wolves))
+        alive_wolf_names = [wolf.name for wolf in self.game_state.alive_wolves]
         announcement = god_agent.announce_night_start(
             self.game_state.get_public_game_state(),
             alive_wolf_names
@@ -202,18 +307,37 @@ class WerewolfGame:
         
         # Wolves choose target
         if alive_wolf_names:
+            # Wolf communication phase (only wolves can see this)
+            if len(self.game_state.alive_wolves) > 1:
+                print(f"{Fore.RED}--- Wolf Communication ---{Style.RESET_ALL}")
+                for wolf in self.game_state.alive_wolves:
+                    instruction = "Night phase: Communicate with your fellow wolves about who to eliminate. Share your strategy."
+                    wolf_message = wolf.agent.step(instruction)
+                    wolf_speech = wolf_message.content if hasattr(wolf_message, 'content') else str(wolf_message)
+                    
+                    print(f"{Fore.RED}🐺 {wolf.name} (to wolves): {wolf_speech}{Style.RESET_ALL}")
+                    
+                    # Only wolves can hear wolf communication
+                    wolf_comm_event = f"{wolf.name} said to wolves: {wolf_speech}"
+                    self._distribute_event_to_agents(wolf_comm_event, wolf, EventType.WOLF_PRIVATE, "night")
+            
             # Let first alive wolf choose (representing wolf consensus)
-            wolf_agent: WolfAgent = self.game_state.alive_wolves[0].agent
+            wolf_agent: AdvancedAgent = self.game_state.alive_wolves[0].agent
 
-            eligible_targets = list(map(lambda x: x.name, self.game_state.alive_civilians))
+            eligible_targets = [x.name for x in self.game_state.alive_civilians]
 
             if eligible_targets:
-                game_context = self.game_state.game_history
-                kill_target_name = wolf_agent.choose_kill_target(
-                    self.game_state.get_public_game_state(),
-                    game_context,
-                    eligible_targets
-                )
+                instruction = f"Night phase: Choose a player to eliminate tonight. Available targets: {', '.join(eligible_targets)}. Make your final decision."
+                kill_message = wolf_agent.step(instruction)
+                kill_target_name = kill_message.content if hasattr(kill_message, 'content') else str(kill_message)
+                
+                # Extract just the player name from the response if needed
+                kill_target_name = kill_target_name.strip()
+                # Simple validation - if the response contains a valid target name, use it
+                for target in eligible_targets:
+                    if target in kill_target_name:
+                        kill_target_name = target
+                        break
                 
                 # Kill the target
                 target_player = self.game_state.players[kill_target_name]
@@ -224,22 +348,17 @@ class WerewolfGame:
                 
                 print(f"{Fore.RED}Wolves have chosen their victim...{Style.RESET_ALL}")
                 
-                # Add to wolf agents' memory
-                for a in self.game_state.alive_wolves:
-                    a.agent.add_to_memory(kill_msg)
+                # Distribute night kill result (all agents will learn about this in the morning)
+                self._distribute_event_to_agents(kill_msg, None, EventType.NIGHT_KILL, "night")
 
         self.game_state.switch_to_day()
-
-    def check_game_over(self) -> Tuple[bool, str]:
-        """Check if game is over."""
-        return self.game_state.check_game_over()
 
     def run_game(self) -> None:
         """Run the complete game."""
         print(f"\n{Back.GREEN}{Fore.BLACK} 🎮 WEREWOLF GAME STARTING! 🎮 {Style.RESET_ALL}")
 
         god = self.game_state.god_player
-        god_agent: GodAgent = god.agent
+        god_agent: GodAdvancedAgent = god.agent
         
         game_over = False
         winner = ""
@@ -249,7 +368,7 @@ class WerewolfGame:
             self.run_day_phase()
             
             # Check game over after day
-            game_over, winner = self.check_game_over()
+            game_over, winner = self.game_state.check_game_over()
             if game_over:
                 break
                 
@@ -257,7 +376,7 @@ class WerewolfGame:
             self.run_night_phase()
             
             # Check game over after night
-            game_over, winner = self.check_game_over()
+            game_over, winner = self.game_state.check_game_over()
             
         # Game over
         final_announcement = god_agent.announce_game_over(
