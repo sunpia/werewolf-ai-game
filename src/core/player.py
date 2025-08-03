@@ -4,7 +4,6 @@ from enum import Enum
 from typing import Optional
 
 from src.agents.advanced_agent import AdvancedAgent
-from src.agents.base_agent import BaseAgent
 
 class Role(Enum):
     """Player roles in the Werewolf game."""
@@ -34,8 +33,8 @@ class Player:
         self.role = role
         self.is_alive = True
         self.votes_received = 0
-        self.vote_target: Optional[int] = None
-        self.agent: Optional[BaseAgent | AdvancedAgent] = None  # Will be set to the agent instance later
+        self.vote_target: Optional[str] = None
+        self.agent: Optional[AdvancedAgent] = None  # Will be set to the agent instance later
 
     def is_wolf(self) -> bool:
         """Check if this player is a wolf."""

@@ -74,3 +74,6 @@ python main.py
 - `utils/` - Utility functions
   - `game_state.py` - Game state management
   - `player.py` - Player class definition
+
+
+📖 **[View Complete Game Demo](DEMO.md)** - See a full 12-player game from start to finish with detailed AI interactions and strategic gameplay.

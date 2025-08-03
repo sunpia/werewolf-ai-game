@@ -2,8 +2,7 @@
 
 import os
 import time
-import random
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from enum import Enum
 from colorama import init, Fore, Back, Style
 
@@ -225,7 +224,7 @@ class WerewolfGame:
 
     def _run_voting_phase(self) -> None:
         """Run the voting phase."""
-        print(f"\n{Fore.CYAN}--- Voting Phase ---")
+        print(f"\n{Fore.CYAN}--- Voting Phase ---{Style.RESET_ALL}")
         # Exclude the god from voting
         eligible_voters = [p for p in self.game_state.alive_players if not p.is_god()]
         eligible_targets_name = [p.name for p in eligible_voters]
@@ -240,17 +239,23 @@ class WerewolfGame:
             agent = voter.agent
             
             # Use AdvancedAgent step method for voting
-            instruction = f"Voting phase: You must vote to eliminate one player, the decision should help you to win game. Current voting status: {str(voting_process)}. Chose the name and please only return the name from following list {', '.join(eligible_targets_name)}"
+            instruction = f"Voting phase: You must vote to eliminate one player, the decision should help you to win game, and don't vote for yourself. Current voting status: {str(voting_process)}. Chose the name and please only return the name from following list {', '.join(eligible_targets_name)}"
             vote_message = agent.step(instruction)
             vote_target = vote_message.content if hasattr(vote_message, 'content') else str(vote_message)
             
             # Extract just the player name from the response if needed
             vote_target = vote_target.strip()
             # Simple validation - if the response contains a valid target name, use it
+            original_vote = vote_target
             for target in eligible_targets_name:
                 if target in vote_target:
                     vote_target = target
                     break
+            
+            # If no valid target found, default to first eligible target
+            if vote_target not in eligible_targets_name:
+                vote_target = eligible_targets_name[0]
+                print(f"  {Fore.YELLOW}Invalid vote '{original_vote}', defaulting to {vote_target}{Style.RESET_ALL}")
 
             self.game_state.vote_for_player(voter.name, vote_target)
             print(f"{voter.name} votes for {vote_target}")
@@ -258,6 +263,7 @@ class WerewolfGame:
             # Distribute voting event to all agents
             vote_msg = f"{voter.name} voted for {vote_target}"
             voting_process.append(vote_msg)
+            self.game_state.add_to_history(vote_msg)
             self._distribute_event_to_agents(vote_msg, voter, EventType.PUBLIC, "voting")
                 
         # Count votes and eliminate player
@@ -334,10 +340,16 @@ class WerewolfGame:
                 # Extract just the player name from the response if needed
                 kill_target_name = kill_target_name.strip()
                 # Simple validation - if the response contains a valid target name, use it
+                original_target = kill_target_name
                 for target in eligible_targets:
                     if target in kill_target_name:
                         kill_target_name = target
                         break
+                
+                # If no valid target found, default to first eligible target
+                if kill_target_name not in eligible_targets:
+                    kill_target_name = eligible_targets[0]
+                    print(f"  {Fore.YELLOW}Invalid target '{original_target}', defaulting to {kill_target_name}{Style.RESET_ALL}")
                 
                 # Kill the target
                 target_player = self.game_state.players[kill_target_name]
