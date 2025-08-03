@@ -2,22 +2,6 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Run Werewolf Game",
-			"type": "shell",
-			"command": "conda",
-			"args": [
-				"run",
-				"--live-stream",
-				"--name",
-				"llm",
-				"python",
-				"main.py"
-			],
-			"group": "build",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
 			"label": "Start Backend Server",
 			"type": "shell",
 			"command": "conda",
@@ -41,40 +25,6 @@
 			"options": {
 				"cwd": "${workspaceFolder}/frontend"
 			},
-			"group": "build",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Install Frontend Dependencies",
-			"type": "shell",
-			"command": "npm",
-			"args": ["install"],
-			"options": {
-				"cwd": "${workspaceFolder}/frontend"
-			},
-			"group": "build",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Start Full Stack (New)",
-			"dependsOrder": "parallel",
-			"dependsOn": [
-				"Start Backend Server (New Structure)",
-				"Start Frontend Dev Server"
-			],
-			"group": "build",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Start Full Stack (Legacy)",
-			"dependsOrder": "parallel",
-			"dependsOn": [
-				"Start Backend Server (Legacy)",
-				"Start Frontend Dev Server"
-			],
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": []
