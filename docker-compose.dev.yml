@@ -1,0 +1,55 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    # Override command for development with more verbose logging
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src --reload-dir /app --log-level debug
+    environment:
+      # Development-specific environment variables
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1  # Don't create .pyc files
+      - DEBUG=true
+    volumes:
+      # Additional development volume mounts
+      - ./:/app:delegated  # Use delegated for better performance on macOS
+      # Exclude more cache directories
+      - /app/__pycache__
+      - /app/src/__pycache__
+      - /app/.pytest_cache
+      - /app/.git
+      - /app/node_modules
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Port for debugging (if needed)
+
+  frontend:
+    # Enable hot reloading for React development
+    environment:
+      - CHOKIDAR_USEPOLLING=true  # Enable polling for file changes
+      - WATCHPACK_POLLING=true
+      - FAST_REFRESH=true
+    volumes:
+      - ./frontend:/app:delegated
+      # Exclude node_modules from host (use container's version)
+      - /app/node_modules
+    stdin_open: true  # Keep STDIN open for React
+    tty: true        # Allocate a pseudo-TTY
+
+  postgres:
+    # Development database settings
+    environment:
+      - POSTGRES_DB=werewolf_game
+      - POSTGRES_USER=werewolf_user
+      - POSTGRES_PASSWORD=werewolf_password
+    volumes:
+      # Use named volume for persistence but allow easy reset
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgres_dev_data:
+    driver: local

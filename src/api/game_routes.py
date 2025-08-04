@@ -6,14 +6,17 @@ import os
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 
 from ..models.api_models import (
     GameCreateRequest, GameResponse, PlayerAction, 
-    GameStateResponse, EventMessage
+    GameStateResponse, EventMessage, GameLimitsResponse
 )
+from ..models.database import User
 from ..services.game_service import GameService
+from ..services.database_service import db_service
+from ..auth.dependencies import get_current_user
 from ..utils.output_handler import OutputHandler, OutputEventType, create_custom_output_handler
 from ..config.settings import get_settings
 
@@ -114,25 +117,77 @@ def get_game_or_404(game_id: str):
 
 
 @router.post("/games", response_model=GameResponse)
-async def create_game(request: GameCreateRequest):
-    """Create a new werewolf game."""
-    settings = get_settings()
-    
-    if not (settings.min_players <= request.num_players <= settings.max_players):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Number of players must be between {settings.min_players} and {settings.max_players}"
-        )
-    
-    # Use provided API key or default from environment
-    api_key = request.api_key or settings.openai_api_key
-    model = request.model or settings.openai_model
-    
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API key is required")
-    
+async def create_game(
+    request: GameCreateRequest, 
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new werewolf game with authentication and database persistence."""
     try:
-        # Create request with validated values
+        # Check if user can create games
+        user = db_service.get_user_by_id(str(current_user.id))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if user.free_games_remaining <= 0:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No free games remaining. You have played {user.total_games_played} games."
+            )
+        
+        settings = get_settings()
+        
+        if not (settings.min_players <= request.num_players <= settings.max_players):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Number of players must be between {settings.min_players} and {settings.max_players}"
+            )
+        
+        # Use provided API key or default from environment
+        api_key = request.api_key or settings.openai_api_key
+        model = request.model or settings.openai_model
+        
+        if not api_key:
+            raise HTTPException(status_code=400, detail="API key is required")
+        
+        # Use a free game
+        if not db_service.decrement_free_games(str(current_user.id)):
+            raise HTTPException(status_code=500, detail="Failed to use free game")
+        
+        # Create game configuration
+        game_config = {
+            "num_players": request.num_players,
+            "api_key": api_key,
+            "model": model,
+            "created_by": str(current_user.id),
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        # Create initial game state
+        initial_state = {
+            "phase": "lobby",
+            "day_count": 1,
+            "alive_players": [],
+            "current_speaker": None,
+            "game_history": [],
+            "is_game_over": False,
+            "winner": None
+        }
+        
+        # Save to database
+        db_game = db_service.create_game(
+            user_id=str(current_user.id),
+            game_config=game_config,
+            initial_state=initial_state
+        )
+        
+        if not db_game:
+            # Restore free game count on database failure
+            db_service.increment_user_games(str(current_user.id), False)  # This will increment free games back
+            raise HTTPException(status_code=500, detail="Failed to create game in database")
+        
+        game_id = str(db_game.id)
+        
+        # Create validated request with database game ID
         validated_request = GameCreateRequest(
             num_players=request.num_players,
             api_key=api_key,
@@ -140,43 +195,113 @@ async def create_game(request: GameCreateRequest):
         )
         
         # Create custom output handler for this game
-        output_handler = create_backend_output_handler("")  # Will be updated with actual game_id
-        
-        # Create game
-        game_id = await game_service.create_game(validated_request, output_handler)
-        
-        # Update output handler with actual game_id
         output_handler = create_backend_output_handler(game_id)
-        game = game_service.get_game(game_id)
-        game.output_handler = output_handler
         
-        # Broadcast game creation event
-        await game_service.broadcast_event(game_id, {
-            "type": "game_created",
-            "game_id": game_id,
-            "num_players": request.num_players,
-            "players": [game_service.player_to_dict(p) for p in game.game_state.players.values()]
-        })
-        
-        return GameResponse(
-            game_id=game_id,
-            status="created",
-            message=f"Game created with {request.num_players} players"
-        )
+        # Create game in the game service
+        try:
+            created_game_id = await game_service.create_game(validated_request, output_handler, game_id)
+            
+            # Log game creation event
+            db_service.add_game_event(
+                game_id=game_id,
+                event_type="game_created",
+                event_data={
+                    "num_players": request.num_players,
+                    "user_id": str(current_user.id),
+                    "user_name": current_user.name
+                },
+                phase="lobby",
+                day_count=1
+            )
+            
+            # Update output handler with actual game_id
+            output_handler = create_backend_output_handler(game_id)
+            game = game_service.get_game(game_id)
+            if game:
+                game.output_handler = output_handler
+                
+                # Broadcast game creation event
+                await game_service.broadcast_event(game_id, {
+                    "type": "game_created",
+                    "game_id": game_id,
+                    "num_players": request.num_players,
+                    "players": [game_service.player_to_dict(p) for p in game.game_state.players.values()]
+                })
+            
+            return GameResponse(
+                game_id=game_id,
+                status="created",
+                message=f"Game created with {request.num_players} players"
+            )
+            
+        except Exception as game_error:
+            # If game service creation fails, restore the free game
+            db_service.increment_user_games(str(current_user.id), False)
+            raise HTTPException(status_code=500, detail=f"Failed to initialize game: {str(game_error)}")
+            
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create game: {str(e)}")
 
 
+@router.get("/games/limits", response_model=GameLimitsResponse)
+async def get_game_limits(current_user: User = Depends(get_current_user)):
+    """Get user's game limits and remaining free games."""
+    try:
+        user = db_service.get_user_by_id(str(current_user.id))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return GameLimitsResponse(
+            free_games_remaining=user.free_games_remaining,
+            total_games_played=user.total_games_played,
+            can_create_game=user.free_games_remaining > 0
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting game limits: {str(e)}")
+
+
 @router.get("/games/{game_id}", response_model=GameStateResponse)
-async def get_game_state(game_id: str):
-    """Get current game state."""
-    game = get_game_or_404(game_id)
-    state_dict = game_service.get_game_state_dict(game)
-    
-    return GameStateResponse(
-        game_id=game_id,
-        **state_dict
-    )
+async def get_game_state(
+    game_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get current game state with authentication."""
+    try:
+        # First check database for game ownership
+        db_game = db_service.get_game_by_id(game_id)
+        if not db_game:
+            raise HTTPException(status_code=404, detail="Game not found")
+        
+        # Verify user owns this game
+        if str(db_game.user_id) != str(current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # If game is active, get live state from game service
+        if db_game.status == "active":
+            game = game_service.get_game(game_id)
+            if game:
+                state_dict = game_service.get_game_state_dict(game)
+                return GameStateResponse(game_id=game_id, **state_dict)
+        
+        # Return persisted state from database
+        state = db_game.game_state
+        return GameStateResponse(
+            game_id=game_id,
+            phase=state.get("phase", "completed"),
+            day_count=state.get("day_count", 1),
+            alive_players=state.get("alive_players", []),
+            current_speaker=state.get("current_speaker"),
+            game_history=state.get("game_history", []),
+            is_game_over=state.get("is_game_over", True),
+            winner=state.get("winner")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting game state: {str(e)}")
 
 
 @router.post("/games/{game_id}/start")

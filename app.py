@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -17,17 +18,31 @@ from src.api.health_routes import router as health_router, set_game_service as s
 from src.api.auth_routes import router as auth_router
 from src.config.settings import get_settings
 from src.services.game_service import GameService
+from src.services.database_service import db_service
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application lifespan events."""
+    # Startup: Initialize database connection
+    db_service.init_db()
+    
+    yield
+    
+    # Shutdown: Close database connection
+    db_service.close()
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
     
-    # Initialize FastAPI app
+    # Initialize FastAPI app with lifespan handler
     app = FastAPI(
         title="Werewolf AI Game Backend",
         description="Backend service for the Werewolf AI game with real-time updates",
-        version="1.0.0"
+        version="1.0.0",
+        lifespan=lifespan
     )
     
     # Add CORS middleware

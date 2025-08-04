@@ -23,9 +23,10 @@ class GameService:
         self.game_events: Dict[str, List[Dict]] = {}
         self.active_connections: Dict[str, List[asyncio.Queue]] = {}
     
-    async def create_game(self, request: GameCreateRequest, output_handler: OutputHandler) -> str:
+    async def create_game(self, request: GameCreateRequest, output_handler: OutputHandler, game_id: str = None) -> str:
         """Create a new werewolf game."""
-        game_id = str(uuid.uuid4())
+        if game_id is None:
+            game_id = str(uuid.uuid4())
         
         # Create game with custom output handler
         game = WerewolfGame(request.num_players, request.api_key, request.model, output_handler)
