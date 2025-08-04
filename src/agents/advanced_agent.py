@@ -110,7 +110,7 @@ class AdvancedAgent:
             intro_str = str(game_intro_data)
             return (
                 f"You will join a game named Werewolf, This is the meta info you should consider.\n"
-                f"After reading these infomation, you should design a strategy to win the game, strategy should be short and focused. And your speak based on the strategy should also be more focuse without feeling like an AI talk. then you can convert yourself into waiting.\n"
+                f"After reading these infomation, you should design a strategy to win the game, strategy should be short (less than 50 words) and focused. And your speak based on the strategy should also be more focuse without feeling like an AI talk. then you can convert yourself into waiting.\n"
                 f"Your Agent Type: {self.agent_type}\n"
                 f"Your Personality: {self.personality}\n"
                 f"Your Name: {self.name}\n"

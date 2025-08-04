@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     min_players: int = 6
     max_players: int = 15
     
+    # Authentication Configuration
+    secret_key: str = "your-secret-key-change-this-in-production"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30 * 24 * 60  # 30 days
+    
+    # Google OAuth Configuration
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    
+    # GitHub OAuth Configuration (optional)
+    github_client_id: Optional[str] = None
+    github_client_secret: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -63,26 +63,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         )}
         <div ref={messagesEndRef} />
       </div>
-      
-      <div className="chat-input-area">
-        <div style={{ textAlign: 'center', opacity: '0.8', fontStyle: 'italic', padding: '20px' }}>
-          <div style={{ fontSize: '1.1em', marginBottom: '10px' }}>
-            👁️ <strong>Spectator Mode</strong> 👁️
-          </div>
-          <div>
-            You are watching AI agents play Werewolf!
-            <br />
-            All conversations and decisions are made by AI.
-            <br />
-            Sit back and enjoy the strategic gameplay unfold.
-          </div>
-          {gameStarted && (
-            <div style={{ marginTop: '15px', color: '#4caf50' }}>
-              🤖 AI agents are actively playing...
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
