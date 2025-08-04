@@ -14,6 +14,7 @@ sys.path.insert(0, str(src_dir))
 
 from src.api.game_routes import router as game_router, set_game_service as set_game_service_routes
 from src.api.health_routes import router as health_router, set_game_service as set_health_service_routes
+from src.api.auth_routes import router as auth_router
 from src.config.settings import get_settings
 from src.services.game_service import GameService
 
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     set_health_service_routes(game_service)
     
     # Include routers
+    app.include_router(auth_router)
     app.include_router(game_router)
     app.include_router(health_router)
     

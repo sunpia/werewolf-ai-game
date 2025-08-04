@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import './index.css';
 import GameLobby from './components/GameLobby';
 import GameRoom from './components/GameRoom';
+import Login from './components/Login';
+import UserProfile from './components/UserProfile';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 export interface Player {
   id: number;
@@ -22,7 +25,8 @@ export interface GameState {
   winner: string | null;
 }
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { isAuthenticated, loading } = useAuth();
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
 
@@ -40,19 +44,49 @@ const App: React.FC = () => {
     setGameState(null);
   };
 
+  const handleLoginSuccess = () => {
+    // Login successful, component will re-render with isAuthenticated = true
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="App">
-      {!gameId ? (
-        <GameLobby onGameCreated={handleGameCreated} />
-      ) : (
-        <GameRoom
-          gameId={gameId}
-          gameState={gameState}
-          onGameStateUpdate={handleGameStateUpdate}
-          onLeaveGame={handleLeaveGame}
-        />
-      )}
+      <header className="app-header">
+        <UserProfile />
+      </header>
+      
+      <main className="app-main">
+        {!gameId ? (
+          <GameLobby onGameCreated={handleGameCreated} />
+        ) : (
+          <GameRoom
+            gameId={gameId}
+            gameState={gameState}
+            onGameStateUpdate={handleGameStateUpdate}
+            onLeaveGame={handleLeaveGame}
+          />
+        )}
+      </main>
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 
