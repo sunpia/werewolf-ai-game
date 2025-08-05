@@ -26,7 +26,7 @@ const GameStatus: React.FC<GameStatusProps> = ({ gameState }) => {
     <div className="game-status">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, fontSize: '1.8em', fontWeight: '700', color: 'rgba(255, 255, 255, 0.95)' }}>
-          🎮 Game Status
+          ℹ️ Game Status
         </h2>
         <span className={`game-phase ${getPhaseColor(gameState.phase)}`}>
           {gameState.phase} {gameState.day_count}

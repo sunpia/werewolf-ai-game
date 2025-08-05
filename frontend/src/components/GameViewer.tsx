@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import './GameViewer.css';
 
 interface SystemEvent {
   id: string;
@@ -73,7 +72,8 @@ const GameViewer: React.FC<GameViewerProps> = ({ gameId, onBack }) => {
   const fetchCompleteGameData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/v1/tracking/games/${gameId}/complete`, {
+      // Use the existing game API endpoint instead of the non-existent tracking endpoint
+      const response = await fetch(`/api/v1/games/${gameId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -83,8 +83,41 @@ const GameViewer: React.FC<GameViewerProps> = ({ gameId, onBack }) => {
         throw new Error('Failed to fetch game data');
       }
 
-      const data = await response.json();
-      setGameData(data);
+      const gameState = await response.json();
+      
+      // Transform the game state data to match the expected CompleteGameData structure
+      const transformedData: CompleteGameData = {
+        game: {
+          id: gameState.game_id,
+          user_id: '', // Not available from this endpoint
+          game_config: {}, // Not available from this endpoint
+          game_state: gameState, // Use the entire game state
+          status: gameState.is_game_over ? 'completed' : 'active',
+          num_players: gameState.alive_players?.length || 0,
+          current_phase: gameState.phase,
+          current_day: gameState.day_count || 1,
+          winner: gameState.winner,
+          is_game_over: gameState.is_game_over || false,
+          created_at: new Date().toISOString(), // Not available from this endpoint
+          updated_at: new Date().toISOString(), // Not available from this endpoint
+          completed_at: gameState.is_game_over ? new Date().toISOString() : undefined
+        },
+        players: gameState.alive_players?.map((player: any, index: number) => ({
+          id: index.toString(),
+          game_id: gameState.game_id,
+          player_name: player.name || `Player ${index + 1}`,
+          role: player.role || 'Unknown',
+          is_alive: player.is_alive !== undefined ? player.is_alive : true,
+          is_god: player.is_god || false,
+          ai_personality: null,
+          strategy_pattern: null,
+          created_at: new Date().toISOString()
+        })) || [],
+        system_events: [], // Not available from this endpoint - would need separate API
+        user_events: []    // Not available from this endpoint - would need separate API
+      };
+      
+      setGameData(transformedData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
     } finally {

@@ -147,6 +147,7 @@ class GameService:
             return
         
         try:
+            game.init_strategy()  # Initialize AI strategies
             speaking_round = 0
             max_speaking_rounds = 2  # Allow multiple rounds of speaking
             

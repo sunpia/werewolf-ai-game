@@ -24,7 +24,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onGameCreated }) => {
   React.useEffect(() => {
     const loadGameLimits = async () => {
       try {
-        const response = await axios.get('/api/games/limits', {
+        const response = await axios.get('/api/v1/user/games/limits', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setGameLimits(response.data);
@@ -58,7 +58,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onGameCreated }) => {
     setError('');
 
     try {
-      const response = await axios.post('/api/games', {
+      const response = await axios.post('/api/v1/games', {
         num_players: numPlayers
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -67,14 +67,14 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onGameCreated }) => {
       const gameId = response.data.game_id;
 
       // Get initial game state
-      const stateResponse = await axios.get(`/api/games/${gameId}`, {
+      const stateResponse = await axios.get(`/api/v1/games/${gameId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       onGameCreated(gameId, stateResponse.data);
       
       // Refresh game limits after creating a game
-      const limitsResponse = await axios.get('/api/games/limits', {
+      const limitsResponse = await axios.get('/api/v1/user/games/limits', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setGameLimits(limitsResponse.data);

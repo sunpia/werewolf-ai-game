@@ -35,7 +35,7 @@ class OutputHandler:
         """
         self.output_function = output_function or self._default_console_output
     
-    def print_colored(self, message: str, player: Optional[Any] = None, 
+    def notify(self, message: str, player: Optional[Any] = None, 
                      event_type: OutputEventType = OutputEventType.SYSTEM,
                      metadata: Optional[dict] = None) -> None:
         """Print colored message with event information.

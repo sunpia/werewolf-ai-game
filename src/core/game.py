@@ -60,21 +60,11 @@ class WerewolfGame:
             elif player.is_god():
                 player.agent = GodAdvancedAgent(self.api_key, self.model, player.name)
 
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             "=== Game Initialized ===", 
             event_type=OutputEventType.SYSTEM
         )
-        self._print_setup_info()
         
-        # Initialize agents with game state
-        public_info = self.game_state.get_public_game_state()
-        for player in self.game_state.players.values():
-            if not player.is_god():
-                player.agent.start(public_info)
-            else:
-                # Initialize god with special god-specific information
-                god_info = f"You are the game moderator. {public_info}"
-                player.agent.start(god_info)
 
     def _print_setup_info(self) -> None:
         """Print game setup information."""
@@ -87,14 +77,14 @@ class WerewolfGame:
         god_str = f"God: {god.name}"
         total_str = f"Total Players: {len(self.game_state.players)}"
         
-        self.output_handler.print_colored(wolves_str, event_type=OutputEventType.GAME_STATE)
-        self.output_handler.print_colored(civilians_str, event_type=OutputEventType.GAME_STATE)
-        self.output_handler.print_colored(god_str, event_type=OutputEventType.GAME_STATE)
-        self.output_handler.print_colored(total_str, event_type=OutputEventType.GAME_STATE)
+        self.output_handler.notify(wolves_str, event_type=OutputEventType.GAME_STATE)
+        self.output_handler.notify(civilians_str, event_type=OutputEventType.GAME_STATE)
+        self.output_handler.notify(god_str, event_type=OutputEventType.GAME_STATE)
+        self.output_handler.notify(total_str, event_type=OutputEventType.GAME_STATE)
 
     def _print_colored(self, message, player: Optional[Player] = None, event_type: OutputEventType = OutputEventType.SYSTEM) -> None:
         """Print colored message based on player role."""
-        self.output_handler.print_colored(message, player, event_type)
+        self.output_handler.notify(message, player, event_type)
 
     def _distribute_event_to_agents(self, event: str, speaker: Optional[Player] = None, 
                                    event_type: EventType = EventType.PUBLIC, context: str = "day") -> None:
@@ -150,7 +140,7 @@ class WerewolfGame:
     def run_day_phase(self) -> None:
         """Run the day phase."""
         day_header = f"=== DAY {self.game_state.day_count} ==="
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             day_header, 
             event_type=OutputEventType.PHASE_TRANSITION,
             metadata={"day_count": self.game_state.day_count}
@@ -188,20 +178,20 @@ class WerewolfGame:
             if voting_result.eliminated:
                 eliminated = voting_result.eliminated
                 elimination_msg = f"{eliminated.name} ({eliminated.role}) was eliminated by vote"
-                self.output_handler.print_colored(
+                self.output_handler.notify(
                     elimination_msg, 
                     event_type=OutputEventType.ELIMINATION,
                     metadata={"eliminated_player": eliminated.name, "role": eliminated.role}
                 )
             else:
-                self.output_handler.print_colored(
+                self.output_handler.notify(
                     "No one was eliminated (tie or no votes)", 
                     event_type=OutputEventType.VOTING
                 )
 
     def _run_speaking_phase_with_ai(self) -> None:
         """Run the speaking phase using AI backend integration methods."""
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             "--- Speaking Phase ---", 
             event_type=OutputEventType.PHASE_TRANSITION
         )
@@ -210,7 +200,7 @@ class WerewolfGame:
 
         for round_num in range(speaking_rounds):
             round_msg = f"Speaking Round {round_num + 1}:"
-            self.output_handler.print_colored(
+            self.output_handler.notify(
                 round_msg, 
                 event_type=OutputEventType.PHASE_TRANSITION,
                 metadata={"round_number": round_num + 1}
@@ -243,13 +233,13 @@ class WerewolfGame:
 
     def _run_voting_phase(self) -> None:
         """Legacy voting phase method - now uses backend integration method."""
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             "--- Voting Phase ---", 
             event_type=OutputEventType.PHASE_TRANSITION
         )
         eligible_voters = [p for p in self.game_state.alive_players if not p.is_god()]
         voters_msg = f"Eligible voters: {', '.join([p.name for p in eligible_voters])}"
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             voters_msg, 
             event_type=OutputEventType.VOTING,
             metadata={"eligible_voters": [p.name for p in eligible_voters]}
@@ -276,7 +266,7 @@ class WerewolfGame:
     def run_night_phase(self) -> None:
         """Run the night phase."""
         night_header = f"=== NIGHT {self.game_state.day_count} ==="
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             night_header, 
             event_type=OutputEventType.PHASE_TRANSITION,
             metadata={"day_count": self.game_state.day_count, "phase": "night"}
@@ -312,13 +302,13 @@ class WerewolfGame:
                 
                 # Display wolf communications
                 if wolf_communications:
-                    self.output_handler.print_colored(
+                    self.output_handler.notify(
                         "--- Wolf Communication ---", 
                         event_type=OutputEventType.WOLF_COMMUNICATION
                     )
                     for comm in wolf_communications:
                         comm_msg = f"{comm.player} (to wolves): {comm.message}"
-                        self.output_handler.print_colored(
+                        self.output_handler.notify(
                             comm_msg, 
                             event_type=OutputEventType.WOLF_COMMUNICATION,
                             metadata={"speaker": comm.player, "private": True}
@@ -328,7 +318,7 @@ class WerewolfGame:
                 success = self.execute_night_kill(target)
                 if success:
                     kill_msg = "Wolves have chosen their victim..."
-                    self.output_handler.print_colored(
+                    self.output_handler.notify(
                         kill_msg, 
                         event_type=OutputEventType.NIGHT_KILL,
                         metadata={"target": target}
@@ -336,14 +326,28 @@ class WerewolfGame:
 
         self.game_state.switch_to_day()
 
+    def init_strategy(self) -> None:
+        # Initialize agents with game state
+        public_info = self.game_state.get_public_game_state()
+        for player in self.game_state.players.values():
+            if not player.is_god():
+                player.agent.start(public_info)
+            else:
+                # Initialize god with special god-specific information
+                god_info = f"You are the game moderator. {public_info}"
+                player.agent.start(god_info)
+
     def run_game(self) -> None:
         """Run the complete game."""
         start_msg = "🎮 WEREWOLF GAME STARTING! 🎮"
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             start_msg, 
             event_type=OutputEventType.GAME_ANNOUNCEMENT,
             metadata={"game_status": "starting"}
         )
+        self.init_strategy()
+        self._print_setup_info() 
+
 
         god = self.game_state.god_player
         god_agent: GodAdvancedAgent = god.agent
@@ -371,7 +375,7 @@ class WerewolfGame:
             winner,
             self.game_state.get_public_game_state()
         )
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             final_announcement, 
             event_type=OutputEventType.GAME_ANNOUNCEMENT,
             metadata={"game_status": "ended", "winner": winner}
@@ -379,7 +383,7 @@ class WerewolfGame:
         
         # Print final roles
         final_reveal_msg = "=== Final Role Reveal ==="
-        self.output_handler.print_colored(
+        self.output_handler.notify(
             final_reveal_msg, 
             event_type=OutputEventType.GAME_STATE
         )
@@ -388,7 +392,7 @@ class WerewolfGame:
             if not player.is_god():
                 status = "Alive" if player.is_alive else "Dead"
                 role_reveal = f"{player.name}: {player.role.value} ({status})"
-                self.output_handler.print_colored(
+                self.output_handler.notify(
                     role_reveal, 
                     player,
                     OutputEventType.GAME_STATE,
@@ -579,7 +583,7 @@ class WerewolfGame:
             
         except Exception as e:
             error_msg = f"Error in voting phase: {e}"
-            self.output_handler.print_colored(
+            self.output_handler.notify(
                 error_msg, 
                 event_type=OutputEventType.ERROR,
                 metadata={"error": str(e)}

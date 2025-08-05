@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import GameViewer from './GameViewer';
-import './GamesList.css';
 
 interface Game {
   id: string;
@@ -29,7 +28,7 @@ const GamesList: React.FC<GamesListProps> = ({ onBack }) => {
   const fetchGames = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/games/history', {
+      const response = await fetch('/api/v1/user/games/history', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },

@@ -74,24 +74,6 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="App">
-      <header className="app-header">
-        <UserProfile />
-        <nav className="app-nav">
-          <button 
-            onClick={handleBackToLobby}
-            className={currentView === 'lobby' ? 'active' : ''}
-          >
-            New Game
-          </button>
-          <button 
-            onClick={handleViewHistory}
-            className={currentView === 'history' ? 'active' : ''}
-          >
-            Game History
-          </button>
-        </nav>
-      </header>
-      
       <main className="app-main">
         {currentView === 'history' ? (
           <GamesList onBack={handleBackToLobby} />
