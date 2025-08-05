@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Text, ForeignKey, JSON, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -67,8 +67,8 @@ class Game(Base):
 
     # Relationships
     user = relationship("User", back_populates="games")
-    history = relationship("GameHistory", back_populates="game", cascade="all, delete-orphan")
     players = relationship("Player", back_populates="game", cascade="all, delete-orphan")
+    system_events = relationship("SystemEvent", back_populates="game", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Game(id={self.id}, user_id={self.user_id}, status='{self.status}')>"
@@ -91,33 +91,35 @@ class Game(Base):
         }
 
 
-class GameHistory(Base):
-    """Game history model for storing detailed game events."""
-    __tablename__ = "game_history"
+class SystemEvent(Base):
+    """System event model for tracking game transitions and system actions."""
+    __tablename__ = "system_events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     game_id = Column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True)
-    event_type = Column(String(50), nullable=False)  # game_start, player_action, phase_change, game_end
-    event_data = Column(JSONB, nullable=False)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    phase = Column(String(50))
-    day_count = Column(Integer)
+    event_type = Column(String(50), nullable=False, index=True)  # day_transition, night_transition, game_start, game_end, voting_start, voting_end
+    event_description = Column(Text, nullable=False)  # What happened
+    event_time = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    phase = Column(String(50))  # day, night, voting, lobby
+    day_number = Column(Integer)
+    event_metadata = Column(JSONB, nullable=True)  # Additional event data
 
     # Relationships
-    game = relationship("Game", back_populates="history")
+    game = relationship("Game", back_populates="system_events")
 
     def __repr__(self):
-        return f"<GameHistory(id={self.id}, game_id={self.game_id}, event_type='{self.event_type}')>"
+        return f"<SystemEvent(id={self.id}, game_id={self.game_id}, event_type='{self.event_type}')>"
 
     def to_dict(self):
         return {
             "id": str(self.id),
             "game_id": str(self.game_id),
             "event_type": self.event_type,
-            "event_data": self.event_data,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "event_description": self.event_description,
+            "event_time": self.event_time.isoformat() if self.event_time else None,
             "phase": self.phase,
-            "day_count": self.day_count
+            "day_number": self.day_number,
+            "event_metadata": self.event_metadata
         }
 
 
@@ -132,10 +134,12 @@ class Player(Base):
     is_alive = Column(Boolean, default=True)
     is_god = Column(Boolean, default=False)
     ai_personality = Column(JSONB)
+    strategy_pattern = Column(JSONB)  # Current strategy patterns
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     game = relationship("Game", back_populates="players")
+    user_events = relationship("UserEvent", back_populates="player", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Player(id={self.id}, game_id={self.game_id}, name='{self.player_name}')>"
@@ -149,5 +153,40 @@ class Player(Base):
             "is_alive": self.is_alive,
             "is_god": self.is_god,
             "ai_personality": self.ai_personality,
+            "strategy_pattern": self.strategy_pattern,
             "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class UserEvent(Base):
+    """User event model for tracking user state changes and actions."""
+    __tablename__ = "user_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    player_id = Column(UUID(as_uuid=True), ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False, index=True)  # speech, strategy_change, vote, accusation, defense, night_action
+    original_value = Column(Text, nullable=True)  # Previous state/value
+    modified_value = Column(Text, nullable=False)  # New state/value (what user said or new strategy)
+    event_time = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    phase = Column(String(50))  # day, night, voting
+    day_number = Column(Integer)
+    event_metadata = Column(JSONB, nullable=True)  # Additional context data
+
+    # Relationships
+    player = relationship("Player", back_populates="user_events")
+
+    def __repr__(self):
+        return f"<UserEvent(id={self.id}, player_id={self.player_id}, event_type='{self.event_type}')>"
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "player_id": str(self.player_id),
+            "event_type": self.event_type,
+            "original_value": self.original_value,
+            "modified_value": self.modified_value,
+            "event_time": self.event_time.isoformat() if self.event_time else None,
+            "phase": self.phase,
+            "day_number": self.day_number,
+            "event_metadata": self.event_metadata
         }

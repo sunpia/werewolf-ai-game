@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './index.css';
 import GameLobby from './components/GameLobby';
 import GameRoom from './components/GameRoom';
+import GamesList from './components/GamesList';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -29,10 +30,12 @@ const AppContent: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [currentView, setCurrentView] = useState<'lobby' | 'game' | 'history'>('lobby');
 
   const handleGameCreated = (id: string, state: GameState) => {
     setGameId(id);
     setGameState(state);
+    setCurrentView('game');
   };
 
   const handleGameStateUpdate = (state: GameState) => {
@@ -42,10 +45,19 @@ const AppContent: React.FC = () => {
   const handleLeaveGame = () => {
     setGameId(null);
     setGameState(null);
+    setCurrentView('lobby');
   };
 
   const handleLoginSuccess = () => {
     // Login successful, component will re-render with isAuthenticated = true
+  };
+
+  const handleViewHistory = () => {
+    setCurrentView('history');
+  };
+
+  const handleBackToLobby = () => {
+    setCurrentView('lobby');
   };
 
   if (loading) {
@@ -64,10 +76,26 @@ const AppContent: React.FC = () => {
     <div className="App">
       <header className="app-header">
         <UserProfile />
+        <nav className="app-nav">
+          <button 
+            onClick={handleBackToLobby}
+            className={currentView === 'lobby' ? 'active' : ''}
+          >
+            New Game
+          </button>
+          <button 
+            onClick={handleViewHistory}
+            className={currentView === 'history' ? 'active' : ''}
+          >
+            Game History
+          </button>
+        </nav>
       </header>
       
       <main className="app-main">
-        {!gameId ? (
+        {currentView === 'history' ? (
+          <GamesList onBack={handleBackToLobby} />
+        ) : !gameId ? (
           <GameLobby onGameCreated={handleGameCreated} />
         ) : (
           <GameRoom

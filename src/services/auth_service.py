@@ -71,7 +71,7 @@ class AuthService:
     
     def update_last_login(self, user_id: str) -> None:
         """Update user's last login timestamp."""
-        self.db.update_user_login(user_id)
+        self.db.update_user_last_login(user_id)
     
     def can_create_game(self, user_id: str) -> bool:
         """Check if user can create a new game (has free games remaining)."""

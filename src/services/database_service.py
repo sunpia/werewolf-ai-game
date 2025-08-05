@@ -1,4 +1,4 @@
-"""Database service for managing database connections and operations."""
+"""Simplified database service for managing database connections and operations."""
 
 import os
 import logging
@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import func
 from contextlib import contextmanager
 
-from ..models.database import Base, User, Game, GameHistory, Player
+from ..models.database import Base, User, Game, Player, SystemEvent, UserEvent
 from ..config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -49,16 +49,6 @@ class DatabaseService:
         """Public method to initialize database - called by FastAPI lifespan."""
         if not self.engine:
             self._initialize_database()
-        else:
-            logger.info("Database already initialized")
-    
-    def close(self):
-        """Close database connections."""
-        if self.engine:
-            self.engine.dispose()
-            logger.info("Database connections closed")
-        else:
-            logger.info("No database connections to close")
     
     @contextmanager
     def get_session(self) -> Generator[Session, None, None]:
@@ -75,7 +65,7 @@ class DatabaseService:
             session.close()
     
     def health_check(self) -> bool:
-        """Check database connectivity."""
+        """Check if database connection is healthy."""
         try:
             with self.get_session() as session:
                 session.execute(text("SELECT 1"))
@@ -83,6 +73,12 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
             return False
+
+    def close(self):
+        """Close database connections."""
+        if self.engine:
+            self.engine.dispose()
+            logger.info("Database connections closed")
     
     # User operations
     def get_user_by_email(self, email: str) -> Optional[User]:
@@ -91,27 +87,14 @@ class DatabaseService:
             with self.get_session() as session:
                 user = session.query(User).filter(User.email == email).first()
                 if user:
-                    # Expunge the object from session to avoid detached instance errors
                     session.expunge(user)
                 return user
-        except SQLAlchemyError as e:
+        except Exception as e:
             logger.error(f"Error getting user by email {email}: {e}")
             return None
     
-    def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID."""
-        try:
-            with self.get_session() as session:
-                user = session.query(User).filter(User.id == user_id).first()
-                if user:
-                    # Expunge the object from session to avoid detached instance errors
-                    session.expunge(user)
-                return user
-        except SQLAlchemyError as e:
-            logger.error(f"Error getting user by ID {user_id}: {e}")
-            return None
-    
-    def create_user(self, email: str, name: str, picture: str = None, provider: str = "google") -> Optional[User]:
+    def create_user(self, email: str, name: str, picture: Optional[str] = None, 
+                   provider: str = "google") -> Optional[User]:
         """Create a new user."""
         try:
             with self.get_session() as session:
@@ -122,28 +105,53 @@ class DatabaseService:
                     provider=provider
                 )
                 session.add(user)
-                session.flush()  # Get the ID
-                session.refresh(user)
-                # Expunge to avoid detached instance errors
+                session.flush()
                 session.expunge(user)
                 return user
-        except SQLAlchemyError as e:
-            logger.error(f"Error creating user {email}: {e}")
+        except Exception as e:
+            logger.error(f"Error creating user: {e}")
             return None
     
-    def update_user_login(self, user_id: str) -> bool:
+    def update_user_last_login(self, user_id: str) -> bool:
         """Update user's last login timestamp."""
+        try:
+            with self.get_session() as session:
+                session.query(User).filter(User.id == user_id).update({
+                    'last_login': datetime.now(timezone.utc)
+                })
+                return True
+        except Exception as e:
+            logger.error(f"Error updating last login for user {user_id}: {e}")
+            return False
+    
+    def increment_user_games(self, user_id: str) -> bool:
+        """Increment user's total games played and decrement free games remaining."""
         try:
             with self.get_session() as session:
                 user = session.query(User).filter(User.id == user_id).first()
                 if user:
-                    user.last_login = datetime.now(timezone.utc)
+                    user.total_games_played += 1
+                    if user.free_games_remaining > 0:
+                        user.free_games_remaining -= 1
+                    session.flush()
                     return True
                 return False
-        except SQLAlchemyError as e:
-            logger.error(f"Error updating user login {user_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error incrementing games for user {user_id}: {e}")
             return False
-    
+
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID."""
+        try:
+            with self.get_session() as session:
+                user = session.query(User).filter(User.id == user_id).first()
+                if user:
+                    session.expunge(user)
+                return user
+        except Exception as e:
+            logger.error(f"Error getting user by ID {user_id}: {e}")
+            return None
+
     def decrement_free_games(self, user_id: str) -> bool:
         """Decrement user's free games remaining."""
         try:
@@ -151,179 +159,281 @@ class DatabaseService:
                 user = session.query(User).filter(User.id == user_id).first()
                 if user and user.free_games_remaining > 0:
                     user.free_games_remaining -= 1
-                    user.total_games_played += 1
+                    session.flush()
                     return True
                 return False
-        except SQLAlchemyError as e:
+        except Exception as e:
             logger.error(f"Error decrementing free games for user {user_id}: {e}")
             return False
-    
-    def increment_user_games(self, user_id: str, decrement: bool = True) -> bool:
-        """Increment or restore user's free games.
-        
-        Args:
-            user_id: The user ID
-            decrement: If True, decrement free games (use one). If False, increment free games (restore one)
-        """
+
+    def increment_free_games(self, user_id: str) -> bool:
+        """Increment user's free games remaining (for refunds/errors)."""
         try:
             with self.get_session() as session:
                 user = session.query(User).filter(User.id == user_id).first()
                 if user:
-                    if decrement:
-                        # Use a free game (decrement)
-                        if user.free_games_remaining > 0:
-                            user.free_games_remaining -= 1
-                            user.total_games_played += 1
-                            return True
-                        return False
-                    else:
-                        # Restore a free game (increment)
-                        user.free_games_remaining += 1
-                        if user.total_games_played > 0:
-                            user.total_games_played -= 1
-                        return True
+                    user.free_games_remaining += 1
+                    session.flush()
+                    return True
                 return False
-        except SQLAlchemyError as e:
-            logger.error(f"Error updating user games for user {user_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error incrementing free games for user {user_id}: {e}")
             return False
-    
+
     # Game operations
-    def create_game(self, user_id: str, game_config: Dict[str, Any], initial_state: Dict[str, Any]) -> Optional[Game]:
+    def create_game(self, user_id: str, game_config: Dict[str, Any], 
+                   game_state: Dict[str, Any], num_players: int,
+                   current_phase: Optional[str] = None) -> Optional[Game]:
         """Create a new game."""
         try:
             with self.get_session() as session:
                 game = Game(
                     user_id=user_id,
                     game_config=game_config,
-                    game_state=initial_state,
-                    num_players=game_config.get("num_players", 6),
-                    current_phase=initial_state.get("phase", "lobby"),
-                    current_day=initial_state.get("day_count", 1)
+                    game_state=game_state,
+                    num_players=num_players,
+                    current_phase=current_phase
                 )
                 session.add(game)
                 session.flush()
-                session.refresh(game)
-                # Expunge to avoid detached instance errors
                 session.expunge(game)
                 return game
-        except SQLAlchemyError as e:
-            logger.error(f"Error creating game for user {user_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error creating game: {e}")
             return None
     
-    def get_game_by_id(self, game_id: str) -> Optional[Game]:
+    def get_game(self, game_id: str) -> Optional[Game]:
         """Get game by ID."""
         try:
             with self.get_session() as session:
                 game = session.query(Game).filter(Game.id == game_id).first()
                 if game:
-                    # Expunge to avoid detached instance errors
                     session.expunge(game)
                 return game
-        except SQLAlchemyError as e:
+        except Exception as e:
             logger.error(f"Error getting game {game_id}: {e}")
             return None
     
-    def update_game_state(self, game_id: str, game_state: Dict[str, Any]) -> bool:
-        """Update game state."""
+    def update_game(self, game_id: str, **kwargs) -> bool:
+        """Update game with given fields."""
         try:
             with self.get_session() as session:
-                game = session.query(Game).filter(Game.id == game_id).first()
-                if game:
-                    game.game_state = game_state
-                    game.current_phase = game_state.get("phase")
-                    game.current_day = game_state.get("day_count")
-                    game.is_game_over = game_state.get("is_game_over", False)
-                    game.winner = game_state.get("winner")
-                    
-                    if game.is_game_over and game.status == "active":
-                        game.status = "completed"
-                        game.completed_at = datetime.now(timezone.utc)
-                    
-                    return True
-                return False
-        except SQLAlchemyError as e:
-            logger.error(f"Error updating game state {game_id}: {e}")
+                kwargs['updated_at'] = datetime.now(timezone.utc)
+                session.query(Game).filter(Game.id == game_id).update(kwargs)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating game {game_id}: {e}")
             return False
     
-    def get_user_games(self, user_id: str, limit: int = 50) -> List[Game]:
-        """Get user's games."""
+    def get_user_games(self, user_id: str, status: Optional[str] = None) -> List[Game]:
+        """Get all games for a user, optionally filtered by status."""
         try:
             with self.get_session() as session:
-                games = session.query(Game).filter(Game.user_id == user_id).order_by(Game.created_at.desc()).limit(limit).all()
-                # Expunge all games to avoid detached instance errors
+                query = session.query(Game).filter(Game.user_id == user_id)
+                if status:
+                    query = query.filter(Game.status == status)
+                games = query.order_by(Game.created_at.desc()).all()
                 for game in games:
                     session.expunge(game)
                 return games
-        except SQLAlchemyError as e:
+        except Exception as e:
             logger.error(f"Error getting games for user {user_id}: {e}")
             return []
     
-    # Game history operations
-    def add_game_event(self, game_id: str, event_type: str, event_data: Dict[str, Any], phase: str = None, day_count: int = None) -> bool:
-        """Add event to game history."""
-        try:
-            with self.get_session() as session:
-                history = GameHistory(
-                    game_id=game_id,
-                    event_type=event_type,
-                    event_data=event_data,
-                    phase=phase,
-                    day_count=day_count
-                )
-                session.add(history)
-                return True
-        except SQLAlchemyError as e:
-            logger.error(f"Error adding game event for game {game_id}: {e}")
-            return False
-    
-    def get_game_history(self, game_id: str) -> List[GameHistory]:
-        """Get game history."""
-        try:
-            with self.get_session() as session:
-                history = session.query(GameHistory).filter(GameHistory.game_id == game_id).order_by(GameHistory.timestamp.asc()).all()
-                # Expunge all history objects to avoid detached instance errors
-                for hist in history:
-                    session.expunge(hist)
-                return history
-        except SQLAlchemyError as e:
-            logger.error(f"Error getting game history for game {game_id}: {e}")
-            return []
-    
     # Player operations
-    def create_players(self, game_id: str, players_data: List[Dict[str, Any]]) -> bool:
-        """Create players for a game."""
+    def create_player(self, game_id: str, player_name: str, role: Optional[str] = None,
+                     is_god: bool = False, ai_personality: Optional[Dict[str, Any]] = None,
+                     strategy_pattern: Optional[Dict[str, Any]] = None) -> Optional[Player]:
+        """Create a new player."""
         try:
             with self.get_session() as session:
-                players = []
-                for player_data in players_data:
-                    player = Player(
-                        game_id=game_id,
-                        player_name=player_data["name"],
-                        role=player_data.get("role"),
-                        is_alive=player_data.get("is_alive", True),
-                        is_god=player_data.get("is_god", False),
-                        ai_personality=player_data.get("ai_personality")
-                    )
-                    players.append(player)
-                
-                session.add_all(players)
-                return True
-        except SQLAlchemyError as e:
-            logger.error(f"Error creating players for game {game_id}: {e}")
-            return False
+                player = Player(
+                    game_id=game_id,
+                    player_name=player_name,
+                    role=role,
+                    is_god=is_god,
+                    ai_personality=ai_personality,
+                    strategy_pattern=strategy_pattern
+                )
+                session.add(player)
+                session.flush()
+                session.expunge(player)
+                return player
+        except Exception as e:
+            logger.error(f"Error creating player: {e}")
+            return None
     
     def get_game_players(self, game_id: str) -> List[Player]:
-        """Get players for a game."""
+        """Get all players for a game."""
         try:
             with self.get_session() as session:
                 players = session.query(Player).filter(Player.game_id == game_id).all()
-                # Expunge all player objects to avoid detached instance errors
                 for player in players:
                     session.expunge(player)
                 return players
-        except SQLAlchemyError as e:
+        except Exception as e:
             logger.error(f"Error getting players for game {game_id}: {e}")
             return []
+    
+    def get_player(self, player_id: str) -> Optional[Player]:
+        """Get player by ID."""
+        try:
+            with self.get_session() as session:
+                player = session.query(Player).filter(Player.id == player_id).first()
+                if player:
+                    session.expunge(player)
+                return player
+        except Exception as e:
+            logger.error(f"Error getting player {player_id}: {e}")
+            return None
+    
+    def update_player(self, player_id: str, **kwargs) -> bool:
+        """Update player with given fields."""
+        try:
+            with self.get_session() as session:
+                session.query(Player).filter(Player.id == player_id).update(kwargs)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating player {player_id}: {e}")
+            return False
+    
+    # System event operations
+    def create_system_event(self, game_id: str, event_type: str, event_description: str,
+                           phase: Optional[str] = None, day_number: Optional[int] = None,
+                           event_metadata: Optional[Dict[str, Any]] = None) -> Optional[SystemEvent]:
+        """Create a new system event."""
+        try:
+            with self.get_session() as session:
+                event = SystemEvent(
+                    game_id=game_id,
+                    event_type=event_type,
+                    event_description=event_description,
+                    phase=phase,
+                    day_number=day_number,
+                    event_metadata=event_metadata
+                )
+                session.add(event)
+                session.flush()
+                session.expunge(event)
+                return event
+        except Exception as e:
+            logger.error(f"Error creating system event: {e}")
+            return None
+    
+    def get_game_system_events(self, game_id: str, event_type: Optional[str] = None,
+                              limit: int = 100) -> List[SystemEvent]:
+        """Get system events for a game."""
+        try:
+            with self.get_session() as session:
+                query = session.query(SystemEvent).filter(SystemEvent.game_id == game_id)
+                if event_type:
+                    query = query.filter(SystemEvent.event_type == event_type)
+                events = query.order_by(SystemEvent.event_time.asc()).limit(limit).all()
+                for event in events:
+                    session.expunge(event)
+                return events
+        except Exception as e:
+            logger.error(f"Error getting system events for game {game_id}: {e}")
+            return []
+    
+    # User event operations
+    def create_user_event(self, player_id: str, event_type: str, modified_value: str,
+                         original_value: Optional[str] = None, phase: Optional[str] = None,
+                         day_number: Optional[int] = None, 
+                         event_metadata: Optional[Dict[str, Any]] = None) -> Optional[UserEvent]:
+        """Create a new user event."""
+        try:
+            with self.get_session() as session:
+                event = UserEvent(
+                    player_id=player_id,
+                    event_type=event_type,
+                    original_value=original_value,
+                    modified_value=modified_value,
+                    phase=phase,
+                    day_number=day_number,
+                    event_metadata=event_metadata
+                )
+                session.add(event)
+                session.flush()
+                session.expunge(event)
+                return event
+        except Exception as e:
+            logger.error(f"Error creating user event: {e}")
+            return None
+    
+    def get_player_user_events(self, player_id: str, event_type: Optional[str] = None,
+                              limit: int = 100) -> List[UserEvent]:
+        """Get user events for a player."""
+        try:
+            with self.get_session() as session:
+                query = session.query(UserEvent).filter(UserEvent.player_id == player_id)
+                if event_type:
+                    query = query.filter(UserEvent.event_type == event_type)
+                events = query.order_by(UserEvent.event_time.asc()).limit(limit).all()
+                for event in events:
+                    session.expunge(event)
+                return events
+        except Exception as e:
+            logger.error(f"Error getting user events for player {player_id}: {e}")
+            return []
+    
+    def get_game_user_events(self, game_id: str, event_type: Optional[str] = None,
+                            limit: int = 100) -> List[UserEvent]:
+        """Get all user events for a game."""
+        try:
+            with self.get_session() as session:
+                query = session.query(UserEvent).join(Player).filter(Player.game_id == game_id)
+                if event_type:
+                    query = query.filter(UserEvent.event_type == event_type)
+                events = query.order_by(UserEvent.event_time.asc()).limit(limit).all()
+                for event in events:
+                    session.expunge(event)
+                return events
+        except Exception as e:
+            logger.error(f"Error getting user events for game {game_id}: {e}")
+            return []
+    
+    # Game data retrieval for frontend
+    def get_complete_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
+        """Get complete game data including players, system events, and user events."""
+        try:
+            with self.get_session() as session:
+                # Get game
+                game = session.query(Game).filter(Game.id == game_id).first()
+                if not game:
+                    return None
+                
+                # Get players
+                players = session.query(Player).filter(Player.game_id == game_id).all()
+                
+                # Get system events
+                system_events = session.query(SystemEvent).filter(
+                    SystemEvent.game_id == game_id
+                ).order_by(SystemEvent.event_time.asc()).all()
+                
+                # Get user events for all players
+                user_events = session.query(UserEvent).join(Player).filter(
+                    Player.game_id == game_id
+                ).order_by(UserEvent.event_time.asc()).all()
+                
+                # Detach all objects from session
+                session.expunge(game)
+                for player in players:
+                    session.expunge(player)
+                for event in system_events:
+                    session.expunge(event)
+                for event in user_events:
+                    session.expunge(event)
+                
+                return {
+                    "game": game.to_dict(),
+                    "players": [player.to_dict() for player in players],
+                    "system_events": [event.to_dict() for event in system_events],
+                    "user_events": [event.to_dict() for event in user_events]
+                }
+        except Exception as e:
+            logger.error(f"Error getting complete game data for {game_id}: {e}")
+            return None
 
 
 # Global database service instance

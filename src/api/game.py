@@ -1,30 +1,31 @@
-"""Game API routes."""
+"""Consolidated game API routes - All game-related endpoints in one file."""
 
 import asyncio
 import json
-import os
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 
-from ..models.api_models import (
-    GameCreateRequest, GameResponse, PlayerAction, 
-    GameStateResponse, EventMessage, GameLimitsResponse
-)
+from ..models.api_models import GameCreateRequest, GameResponse, GameStateResponse, PlayerAction
 from ..models.database import User
-from ..services.game_service import GameService
 from ..services.database_service import db_service
+from ..services.game_service import GameService
 from ..auth.dependencies import get_current_user
-from ..utils.output_handler import OutputHandler, OutputEventType, create_custom_output_handler
 from ..config.settings import get_settings
-
-router = APIRouter(prefix="/api", tags=["games"])
+from ..utils.output_handler import OutputHandler, OutputEventType, create_custom_output_handler
 
 # Game service instance (will be injected later)
 game_service: GameService = None
 
+# Main router that combines all game routes
+router = APIRouter()
+
+
+# ============================================================================
+# GAME UTILITIES
+# ============================================================================
 
 def set_game_service(service: GameService):
     """Set the game service instance."""
@@ -32,8 +33,25 @@ def set_game_service(service: GameService):
     game_service = service
 
 
+def get_game_service() -> GameService:
+    """Get the game service instance."""
+    if game_service is None:
+        raise HTTPException(status_code=500, detail="Game service not initialized")
+    return game_service
+
+
+def get_game_or_404(game_id: str):
+    """Get game instance or raise 404."""
+    service = get_game_service()
+    game = service.get_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game
+
+
 def create_backend_output_handler(game_id: str) -> OutputHandler:
     """Create an output handler that forwards messages to frontend via SSE."""
+    service = get_game_service()
     
     async def backend_output_function(message: str, event_type: OutputEventType, 
                                     player: Optional[Any] = None, metadata: dict = None) -> None:
@@ -87,7 +105,7 @@ def create_backend_output_handler(game_id: str) -> OutputHandler:
         event_data["frontend_type"] = frontend_event_type
         
         # Broadcast to frontend
-        await game_service.broadcast_event(game_id, event_data)
+        await service.broadcast_event(game_id, event_data)
     
     # Create a wrapper that handles the async nature
     def sync_output_function(message: str, event_type: OutputEventType, 
@@ -108,21 +126,19 @@ def create_backend_output_handler(game_id: str) -> OutputHandler:
     return create_custom_output_handler(sync_output_function)
 
 
-def get_game_or_404(game_id: str):
-    """Get game instance or raise 404."""
-    game = game_service.get_game(game_id)
-    if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
-    return game
+# ============================================================================
+# GAME MANAGEMENT ROUTES
+# ============================================================================
 
-
-@router.post("/games", response_model=GameResponse)
+@router.post("/api/v1/games", response_model=GameResponse, tags=["game"])
 async def create_game(
     request: GameCreateRequest, 
     current_user: User = Depends(get_current_user)
 ):
     """Create a new werewolf game with authentication and database persistence."""
     try:
+        game_service = get_game_service()
+        
         # Check if user can create games
         user = db_service.get_user_by_id(str(current_user.id))
         if not user:
@@ -177,12 +193,13 @@ async def create_game(
         db_game = db_service.create_game(
             user_id=str(current_user.id),
             game_config=game_config,
-            initial_state=initial_state
+            game_state=initial_state,
+            num_players=request.num_players
         )
         
         if not db_game:
             # Restore free game count on database failure
-            db_service.increment_user_games(str(current_user.id), False)  # This will increment free games back
+            db_service.increment_free_games(str(current_user.id))
             raise HTTPException(status_code=500, detail="Failed to create game in database")
         
         game_id = str(db_game.id)
@@ -202,16 +219,17 @@ async def create_game(
             created_game_id = await game_service.create_game(validated_request, output_handler, game_id)
             
             # Log game creation event
-            db_service.add_game_event(
+            db_service.create_system_event(
                 game_id=game_id,
                 event_type="game_created",
-                event_data={
+                event_description=f"Game created with {request.num_players} players by {current_user.name}",
+                phase="lobby",
+                day_number=1,
+                event_metadata={
                     "num_players": request.num_players,
                     "user_id": str(current_user.id),
                     "user_name": current_user.name
-                },
-                phase="lobby",
-                day_count=1
+                }
             )
             
             # Update output handler with actual game_id
@@ -236,7 +254,7 @@ async def create_game(
             
         except Exception as game_error:
             # If game service creation fails, restore the free game
-            db_service.increment_user_games(str(current_user.id), False)
+            db_service.increment_free_games(str(current_user.id))
             raise HTTPException(status_code=500, detail=f"Failed to initialize game: {str(game_error)}")
             
     except HTTPException:
@@ -245,32 +263,33 @@ async def create_game(
         raise HTTPException(status_code=500, detail=f"Failed to create game: {str(e)}")
 
 
-@router.get("/games/limits", response_model=GameLimitsResponse)
-async def get_game_limits(current_user: User = Depends(get_current_user)):
-    """Get user's game limits and remaining free games."""
-    try:
-        user = db_service.get_user_by_id(str(current_user.id))
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return GameLimitsResponse(
-            free_games_remaining=user.free_games_remaining,
-            total_games_played=user.total_games_played,
-            can_create_game=user.free_games_remaining > 0
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting game limits: {str(e)}")
+@router.delete("/api/v1/games/{game_id}", tags=["game"])
+async def delete_game(game_id: str):
+    """Delete a game."""
+    game_service = get_game_service()
+    success = game_service.delete_game(game_id)
+    
+    if success:
+        return {"status": "deleted", "message": "Game deleted successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="Game not found")
 
 
-@router.get("/games/{game_id}", response_model=GameStateResponse)
+# ============================================================================
+# GAME STATE ROUTES
+# ============================================================================
+
+@router.get("/api/v1/games/{game_id}", response_model=GameStateResponse, tags=["game"])
 async def get_game_state(
     game_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """Get current game state with authentication."""
     try:
+        game_service = get_game_service()
+        
         # First check database for game ownership
-        db_game = db_service.get_game_by_id(game_id)
+        db_game = db_service.get_game(game_id)
         if not db_game:
             raise HTTPException(status_code=404, detail="Game not found")
         
@@ -304,9 +323,25 @@ async def get_game_state(
         raise HTTPException(status_code=500, detail=f"Error getting game state: {str(e)}")
 
 
-@router.post("/games/{game_id}/start")
+@router.get("/api/v1/games/{game_id}/players", tags=["game"])
+async def get_players(game_id: str):
+    """Get all players in the game."""
+    game_service = get_game_service()
+    game = get_game_or_404(game_id)
+    
+    return {
+        "players": [game_service.player_to_dict(p) for p in game.game_state.players.values()]
+    }
+
+
+# ============================================================================
+# GAME ACTION ROUTES
+# ============================================================================
+
+@router.post("/api/v1/games/{game_id}/start", tags=["game"])
 async def start_game(game_id: str):
     """Start the game."""
+    game_service = get_game_service()
     game = get_game_or_404(game_id)
     
     try:
@@ -325,9 +360,10 @@ async def start_game(game_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to start game: {str(e)}")
 
 
-@router.post("/games/{game_id}/action")
+@router.post("/api/v1/games/{game_id}/action", tags=["game"])
 async def player_action(game_id: str, action: PlayerAction):
     """Handle player action (speak, vote, etc.)."""
+    game_service = get_game_service()
     game = get_game_or_404(game_id)
     
     try:
@@ -373,9 +409,14 @@ async def player_action(game_id: str, action: PlayerAction):
         raise HTTPException(status_code=500, detail=f"Failed to process action: {str(e)}")
 
 
-@router.get("/games/{game_id}/events")
+# ============================================================================
+# GAME EVENTS ROUTES
+# ============================================================================
+
+@router.get("/api/v1/games/{game_id}/events", tags=["game"])
 async def stream_events(game_id: str):
     """Stream game events using Server-Sent Events."""
+    game_service = get_game_service()
     
     async def event_stream():
         # Create a queue for this connection
@@ -416,22 +457,5 @@ async def stream_events(game_id: str):
     )
 
 
-@router.get("/games/{game_id}/players")
-async def get_players(game_id: str):
-    """Get all players in the game."""
-    game = get_game_or_404(game_id)
-    
-    return {
-        "players": [game_service.player_to_dict(p) for p in game.game_state.players.values()]
-    }
-
-
-@router.delete("/games/{game_id}")
-async def delete_game(game_id: str):
-    """Delete a game."""
-    success = game_service.delete_game(game_id)
-    
-    if success:
-        return {"status": "deleted", "message": "Game deleted successfully"}
-    else:
-        raise HTTPException(status_code=404, detail="Game not found")
+# Export the service setter function for app.py
+__all__ = ["router", "set_game_service"]
