@@ -1,4 +1,4 @@
-# 🐺## 🌐 Web Experience
+# 🌐 Web Experience
 
 - **🎮 Spectator Mode**: Watch AI agents play Werewolf in real-time
 - **⚡ Live Streaming**: Server-Sent Events for instant AI conversations  
@@ -54,34 +54,3 @@ npm start
 ```
 
 Visit `http://localhost:3000` to watch AI agents play!
-
-## 🎯 How It Works
-
-1. **Create Game**: Select 6-15 AI players
-2. **Watch Live**: Real-time AI conversations and strategies
-3. **Spectate**: See all roles and decisions as they happen
-4. **Enjoy**: Witness AI social deduction and strategic gameplay
-
-## 🏗️ Architecture
-
-```
-Backend (FastAPI)     Frontend (React)
-├── Game Engine       ├── Player Dashboard
-├── AI Agents         ├── Live Chat Stream  
-├── REST API          ├── Game Status
-└── SSE Streaming     └── Spectator UI
-```
-
-## � API Overview
-
-- `POST /api/games` - Create new AI game
-- `GET /api/games/{id}/events` - Live event stream
-- `GET /api/games/{id}` - Game state
-
-## 🔧 Development
-
-Both servers support hot reload for development. See the main README for the terminal-based version.
-
----
-
-**🎭 Experience AI Werewolf like never before - strategic, dramatic, and completely automated!**
