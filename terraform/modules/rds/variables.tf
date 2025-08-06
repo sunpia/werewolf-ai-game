@@ -23,12 +23,6 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "db_instance_class" {
-  description = "RDS instance class"
-  type        = string
-  default     = "db.t3.micro"
-}
-
 variable "db_name" {
   description = "Name of the database"
   type        = string
@@ -36,7 +30,7 @@ variable "db_name" {
 }
 
 variable "engine_version" {
-  description = "PostgreSQL engine version"
+  description = "Aurora PostgreSQL engine version"
   type        = string
   default     = "15.8"
 }
@@ -53,16 +47,16 @@ variable "db_password" {
   sensitive   = true
 }
 
-variable "allocated_storage" {
-  description = "Initial allocated storage in GB"
+variable "min_aurora_capacity" {
+  description = "Minimum Aurora capacity units (0.5 to 128)"
   type        = number
-  default     = 20
+  default     = 0.5
 }
 
-variable "max_allocated_storage" {
-  description = "Maximum allocated storage in GB"
+variable "max_aurora_capacity" {
+  description = "Maximum Aurora capacity units (0.5 to 128)"
   type        = number
-  default     = 100
+  default     = 4
 }
 
 variable "backup_retention_period" {

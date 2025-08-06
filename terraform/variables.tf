@@ -47,7 +47,7 @@ variable "google_client_secret" {
 variable "backend_image" {
   description = "Docker image for the backend service"
   type        = string
-  default     = "dockerofshy/ai-werewolf-game:34a111"
+  default     = "dockerofshy/ai-werewolf-game:34a114"
 }
 
 # SSL Certificate ARN (optional)

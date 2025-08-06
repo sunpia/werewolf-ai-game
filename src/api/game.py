@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 from typing import Any, Optional
 
@@ -18,6 +19,9 @@ from ..utils.output_handler import OutputHandler, OutputEventType, create_custom
 
 # Game service instance (will be injected later)
 game_service: GameService = None
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # Main router that combines all game routes
 router = APIRouter()
@@ -218,6 +222,26 @@ async def create_game(
         try:
             created_game_id = await game_service.create_game(validated_request, output_handler, game_id)
             
+            # Get the created game to access players
+            created_game = game_service.get_game(game_id)
+            if not created_game:
+                raise HTTPException(status_code=500, detail="Failed to retrieve created game")
+            
+            # Create players in the database
+            for player_name, player in created_game.game_state.players.items():
+                db_player = db_service.create_player(
+                    game_id=game_id,
+                    player_name=player.name,
+                    role=player.role.value,
+                    is_god=player.is_god(),
+                    ai_personality={
+                        "agent_type": "wolf" if player.is_wolf() else "villager" if player.is_civilian() else "god"
+                    },
+                    strategy_pattern={}
+                )
+                if not db_player:
+                    logger.error(f"Failed to create database record for player {player.name}")
+            
             # Log game creation event
             db_service.create_system_event(
                 game_id=game_id,
@@ -326,11 +350,24 @@ async def get_game_state(
 @router.get("/api/v1/games/{game_id}/players", tags=["game"])
 async def get_players(game_id: str):
     """Get all players in the game."""
-    game_service = get_game_service()
+    from ..services.database_service import db_service
+    
+    # First verify the game exists
     game = get_game_or_404(game_id)
     
+    # Get players from database
+    players = db_service.get_game_players(game_id)
+    
     return {
-        "players": [game_service.player_to_dict(p) for p in game.game_state.players.values()]
+        "players": [{
+            "id": player.id,
+            "player_name": player.player_name,
+            "role": player.role,
+            "is_alive": player.is_alive,
+            "is_god": player.is_god,
+            "ai_personality": player.ai_personality,
+            "strategy_pattern": player.strategy_pattern
+        } for player in players]
     }
 
 

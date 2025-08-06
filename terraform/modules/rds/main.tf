@@ -10,10 +10,10 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
-# Security Group for RDS
+# Security Group for Aurora
 resource "aws_security_group" "rds" {
-  name        = "${var.project_name}-${var.environment}-rds-sg"
-  description = "Security group for RDS PostgreSQL"
+  name        = "${var.project_name}-${var.environment}-aurora-sg"
+  description = "Security group for Aurora PostgreSQL Serverless"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -31,16 +31,17 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-rds-sg"
+    Name        = "${var.project_name}-${var.environment}-aurora-sg"
     Environment = var.environment
     Project     = var.project_name
   }
 }
 
-# RDS Parameter Group
-resource "aws_db_parameter_group" "main" {
-  family = "postgres15"
-  name   = "${var.project_name}-${var.environment}-pg-params"
+# Aurora Cluster Parameter Group
+resource "aws_rds_cluster_parameter_group" "main" {
+  family      = "aurora-postgresql15"
+  name        = "${var.project_name}-${var.environment}-aurora-cluster-params"
+  description = "Aurora cluster parameter group for PostgreSQL 15"
 
   parameter {
     name  = "log_statement"
@@ -53,58 +54,91 @@ resource "aws_db_parameter_group" "main" {
   }
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-pg-params"
+    Name        = "${var.project_name}-${var.environment}-aurora-cluster-params"
     Environment = var.environment
     Project     = var.project_name
   }
 }
 
-# RDS Instance
-resource "aws_db_instance" "main" {
-  identifier = "${var.project_name}-${var.environment}-postgres"
+# Aurora DB Parameter Group for instances
+resource "aws_db_parameter_group" "main" {
+  family = "aurora-postgresql15"
+  name   = "${var.project_name}-${var.environment}-aurora-db-params"
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-aurora-db-params"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Aurora Serverless v2 Cluster
+resource "aws_rds_cluster" "main" {
+  cluster_identifier = "${var.project_name}-${var.environment}-aurora-cluster"
 
   # Engine options
-  engine         = "postgres"
+  engine         = "aurora-postgresql"
   engine_version = var.engine_version
-  instance_class = var.db_instance_class
+  engine_mode    = "provisioned"
 
   # Database options
-  db_name  = var.db_name
-  username = var.db_username
-  password = var.db_password
-  port     = 5432
-
-  # Storage options
-  allocated_storage     = var.allocated_storage
-  max_allocated_storage = var.max_allocated_storage
-  storage_type          = "gp3"
-  storage_encrypted     = true
+  database_name   = var.db_name
+  master_username = var.db_username
+  master_password = var.db_password
+  port            = 5432
 
   # Network & Security
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = false
+
+  # Serverless v2 scaling configuration
+  serverlessv2_scaling_configuration {
+    max_capacity = var.max_aurora_capacity
+    min_capacity = var.min_aurora_capacity
+  }
 
   # Backup & Maintenance
   backup_retention_period = var.backup_retention_period
-  backup_window          = "03:00-04:00"
-  maintenance_window     = "Sun:04:00-Sun:05:00"
-  auto_minor_version_upgrade = true
+  preferred_backup_window = "03:00-04:00"
+  preferred_maintenance_window = "Sun:04:00-Sun:05:00"
+  copy_tags_to_snapshot = true
 
-  # Performance & Monitoring
-  performance_insights_enabled = true
-  monitoring_interval         = 60
-  monitoring_role_arn        = aws_iam_role.rds_monitoring.arn
+  # Storage
+  storage_encrypted = true
 
-  # Parameter group
-  parameter_group_name = aws_db_parameter_group.main.name
+  # Parameter groups
+  db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.main.name
 
   # Deletion protection
   deletion_protection = var.deletion_protection
   skip_final_snapshot = var.skip_final_snapshot
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.project_name}-${var.environment}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-postgres"
+    Name        = "${var.project_name}-${var.environment}-aurora-cluster"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Aurora Serverless v2 Instance
+resource "aws_rds_cluster_instance" "main" {
+  identifier         = "${var.project_name}-${var.environment}-aurora-instance"
+  cluster_identifier = aws_rds_cluster.main.id
+  instance_class     = "db.serverless"
+  engine             = aws_rds_cluster.main.engine
+  engine_version     = aws_rds_cluster.main.engine_version
+
+  # Parameter group
+  db_parameter_group_name = aws_db_parameter_group.main.name
+
+  # Performance Insights
+  performance_insights_enabled = true
+  monitoring_interval         = 60
+  monitoring_role_arn        = aws_iam_role.rds_monitoring.arn
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-aurora-instance"
     Environment = var.environment
     Project     = var.project_name
   }
