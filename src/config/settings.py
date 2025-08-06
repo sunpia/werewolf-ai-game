@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gemini-2.5-flash-lite"
+    openai_model: str = "gpt-4.1-nano"
     
     # Server Configuration
     host: str = "0.0.0.0"

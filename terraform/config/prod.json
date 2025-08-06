@@ -1,0 +1,31 @@
+{
+    "project_name": "werewolf",
+    "environment": "prod",
+    "aws_region": "eu-central-1",
+    "networking": {
+        "vpc_cidr": "10.0.0.0/16",
+        "availability_zones": ["eu-central-1a", "eu-central-1b"],
+        "public_subnet_cidrs": ["10.0.1.0/24", "10.0.2.0/24"],
+        "private_subnet_cidrs": ["10.0.10.0/24", "10.0.11.0/24"]
+    },
+    "database": {
+        "instance_class": "db.t3.micro",
+        "db_name": "werewolf_game",
+        "engine_version": "15.8",
+        "allocated_storage": 20,
+        "max_allocated_storage": 100,
+        "backup_retention_period": 3,
+        "deletion_protection": false,
+        "skip_final_snapshot": true
+    },
+    "ecs": {
+        "container_port": 8000,
+        "task_cpu": "256",
+        "task_memory": "512",
+        "desired_count": 1
+    },
+    "frontend": {
+        "domain_names": [],
+        "cloudfront_price_class": "PriceClass_100"
+    }
+}

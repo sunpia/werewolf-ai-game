@@ -37,8 +37,8 @@ class DatabaseService:
             )
             self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
             
-            # Create tables
-            Base.metadata.create_all(bind=self.engine)
+            # Create tables if they don't exist
+            Base.metadata.create_all(bind=self.engine, checkfirst=True)
             logger.info("Database initialized successfully")
             
         except Exception as e:
