@@ -82,7 +82,7 @@ class WerewolfGame:
         self.output_handler.notify(god_str, event_type=OutputEventType.GAME_STATE)
         self.output_handler.notify(total_str, event_type=OutputEventType.GAME_STATE)
 
-    def _print_colored(self, message, player: Optional[Player] = None, event_type: OutputEventType = OutputEventType.SYSTEM) -> None:
+    def _notify(self, message, player: Optional[Player] = None, event_type: OutputEventType = OutputEventType.SYSTEM) -> None:
         """Print colored message based on player role."""
         self.output_handler.notify(message, player, event_type)
 
@@ -167,7 +167,7 @@ class WerewolfGame:
             self.game_state.get_public_game_state(),
             recent_events
         )
-        self._print_colored(announcement, self.game_state.god_player, OutputEventType.GAME_ANNOUNCEMENT)
+        self._notify(announcement, self.game_state.god_player, OutputEventType.GAME_ANNOUNCEMENT)
         
         # Speaking phase - use backend integration method
         self._run_speaking_phase_with_ai()
@@ -224,7 +224,7 @@ class WerewolfGame:
                             speaker = player
                             break
                     
-                    self._print_colored(message, speaker, OutputEventType.PLAYER_SPEECH)
+                    self._notify(message, speaker, OutputEventType.PLAYER_SPEECH)
                     time.sleep(5)  # Brief pause for readability
 
     def _run_speaking_phase(self) -> None:
@@ -258,10 +258,10 @@ class WerewolfGame:
                 voting_result.vote_counts, 
                 eliminated.name
             )
-            self._print_colored(announcement, god, OutputEventType.GAME_ANNOUNCEMENT)
+            self._notify(announcement, god, OutputEventType.GAME_ANNOUNCEMENT)
         else:
             no_elimination_msg = "No one was eliminated (tie or no votes)"
-            self._print_colored(no_elimination_msg, god, OutputEventType.VOTING)
+            self._notify(no_elimination_msg, god, OutputEventType.VOTING)
 
     def run_night_phase(self) -> None:
         """Run the night phase."""
@@ -291,7 +291,7 @@ class WerewolfGame:
             self.game_state.get_public_game_state(),
             alive_wolf_names
         )
-        self._print_colored(announcement, god, OutputEventType.GAME_ANNOUNCEMENT)
+        self._notify(announcement, god, OutputEventType.GAME_ANNOUNCEMENT)
         
         # Use backend integration method for night actions
         if alive_wolf_names:

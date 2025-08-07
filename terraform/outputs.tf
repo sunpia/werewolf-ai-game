@@ -1,3 +1,6 @@
+# Data source for current AWS region
+data "aws_region" "current" {}
+
 # Networking outputs
 output "vpc_id" {
   description = "ID of the VPC"
@@ -46,6 +49,22 @@ output "alb_dns_name" {
 output "backend_url" {
   description = "Backend API URL"
   value       = "http://${module.ecs.alb_dns_name}"
+}
+
+# ECR outputs
+output "ecr_repository_url" {
+  description = "URL of the ECR repository"
+  value       = module.ecs.ecr_repository_url
+}
+
+output "ecr_repository_name" {
+  description = "Name of the ECR repository"
+  value       = module.ecs.ecr_repository_name
+}
+
+output "docker_login_command" {
+  description = "Command to login to ECR"
+  value       = "aws ecr get-login-password --region ${data.aws_region.current.name} | docker login --username AWS --password-stdin ${module.ecs.ecr_repository_url}"
 }
 
 # Frontend outputs

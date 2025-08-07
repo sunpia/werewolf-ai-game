@@ -220,7 +220,7 @@ async def create_game(
         
         # Create game in the game service
         try:
-            created_game_id = await game_service.create_game(validated_request, output_handler, game_id)
+            await game_service.create_game(validated_request, output_handler, game_id)
             
             # Get the created game to access players
             created_game = game_service.get_game(game_id)
@@ -241,6 +241,7 @@ async def create_game(
                 )
                 if not db_player:
                     logger.error(f"Failed to create database record for player {player.name}")
+            
             
             # Log game creation event
             db_service.create_system_event(

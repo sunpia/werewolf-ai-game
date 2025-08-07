@@ -80,7 +80,7 @@ resource "random_password" "jwt_secret" {
   special = true
 }
 
-# RDS Module
+# Aurora Module (formerly RDS)
 module "rds" {
   source = "./modules/rds"
 
@@ -89,13 +89,12 @@ module "rds" {
   vpc_id                 = module.networking.vpc_id
   vpc_cidr_block         = module.networking.vpc_cidr_block
   private_subnet_ids     = module.networking.private_subnet_ids
-  db_instance_class      = local.db_config.instance_class
   db_name                = local.db_config.db_name
   engine_version         = try(local.db_config.engine_version, "15.8")
   db_username            = var.db_username
   db_password            = random_password.db_password.result
-  allocated_storage      = local.db_config.allocated_storage
-  max_allocated_storage  = local.db_config.max_allocated_storage
+  min_aurora_capacity    = try(local.db_config.min_aurora_capacity, 0.5)
+  max_aurora_capacity    = try(local.db_config.max_aurora_capacity, 4)
   backup_retention_period = local.db_config.backup_retention_period
   deletion_protection    = local.db_config.deletion_protection
   skip_final_snapshot    = local.db_config.skip_final_snapshot

@@ -4,9 +4,10 @@ from fastapi import APIRouter
 
 from .game import get_game_service
 
-router = APIRouter(prefix="/api", tags=["health"])
+router = APIRouter(tags=["health"])
 
 
+@router.get("/")
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""

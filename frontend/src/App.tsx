@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 export interface Player {
   id: number;
-  name: string;
+  player_name: string;
   is_alive: boolean;
   is_god: boolean;
   role?: string;

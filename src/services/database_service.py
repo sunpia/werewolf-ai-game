@@ -196,8 +196,16 @@ class DatabaseService:
                 )
                 session.add(game)
                 session.flush()
-                session.expunge(game)
-                return game
+                return Game(
+                    id=game.id,
+                    user_id=user_id,
+                    game_config=game_config,
+                    game_state=game_state,
+                    num_players=num_players,
+                    current_phase=current_phase,
+                    created_at=game.created_at,
+                    updated_at=game.updated_at
+                )
         except Exception as e:
             logger.error(f"Error creating game: {e}")
             return None
@@ -257,8 +265,15 @@ class DatabaseService:
                 )
                 session.add(player)
                 session.flush()
-                session.expunge(player)
-                return player
+                return Player(
+                    id=player.id,
+                    game_id=game_id,
+                    player_name=player_name,
+                    role=role,
+                    is_god=is_god,
+                    ai_personality=ai_personality,
+                    strategy_pattern=strategy_pattern
+                )
         except Exception as e:
             logger.error(f"Error creating player: {e}")
             return None
@@ -355,8 +370,17 @@ class DatabaseService:
                 )
                 session.add(event)
                 session.flush()
-                session.expunge(event)
-                return event
+                return UserEvent(
+                    id=event.id,
+                    player_id=player_id,
+                    event_type=event_type,
+                    original_value=original_value,
+                    modified_value=modified_value,
+                    phase=phase,
+                    day_number=day_number,
+                    event_metadata=event_metadata,
+                    event_time=event.event_time
+                )
         except Exception as e:
             logger.error(f"Error creating user event: {e}")
             return None

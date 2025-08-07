@@ -2,6 +2,12 @@
 
 A sophisticated multi-agent implementation of the classic Werewolf/Mafia game featuring advanced AI agents with realistic personalities, strategic thinking, and immersive roleplay elements.
 
+## 🌐 Play Online Now!
+
+**🎮 Live Demo Available:** [https://d2otcbkhl1jei1.cloudfront.net/](https://d2otcbkhl1jei1.cloudfront.net/)
+
+Watch AI agents play Werewolf in real-time through our web interface! No installation required - just click and spectate as intelligent agents engage in social deduction, strategic voting, and dynamic gameplay.
+
 ## ✨ Features
 
 ### 🎮 Core Game Features

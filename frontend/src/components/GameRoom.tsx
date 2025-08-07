@@ -28,6 +28,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   const [players, setPlayers] = useState<Player[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const [startButtonClicked, setStartButtonClicked] = useState<boolean>(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const onGameStateUpdateRef = useRef(onGameStateUpdate);
 
@@ -159,9 +160,12 @@ const GameRoom: React.FC<GameRoomProps> = ({
 
   const handleStartGame = async () => {
     try {
+      setStartButtonClicked(true);
       await axios.post(`/api/v1/games/${gameId}/start`);
     } catch (error) {
       console.error('Failed to start game:', error);
+      // Reset the button state if there's an error
+      setStartButtonClicked(false);
     }
   };
 
@@ -209,22 +213,28 @@ const GameRoom: React.FC<GameRoomProps> = ({
           {!gameStarted && (
             <button 
               onClick={handleStartGame}
+              disabled={startButtonClicked}
               className="create-game-button"
               style={{ 
                 padding: '12px 16px', 
                 fontSize: '14px',
                 width: '100%',
-                background: 'linear-gradient(135deg, #4caf50, #45a049)',
+                background: startButtonClicked 
+                  ? 'linear-gradient(135deg, #ff9800, #f57c00)'
+                  : 'linear-gradient(135deg, #4caf50, #45a049)',
                 border: 'none',
                 borderRadius: '8px',
                 color: 'white',
-                cursor: 'pointer',
+                cursor: startButtonClicked ? 'default' : 'pointer',
                 fontWeight: '600',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '0 4px 16px rgba(76, 175, 80, 0.3)'
+                boxShadow: startButtonClicked 
+                  ? '0 4px 16px rgba(255, 152, 0, 0.3)'
+                  : '0 4px 16px rgba(76, 175, 80, 0.3)',
+                opacity: startButtonClicked ? 0.8 : 1
               }}
             >
-              🚀 Start AI Battle
+              {startButtonClicked ? '⚙️ Init Game' : '🚀 Start Game'}
             </button>
           )}
         </div>
