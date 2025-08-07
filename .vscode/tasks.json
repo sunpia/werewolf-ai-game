@@ -15,7 +15,12 @@
 			],
 			"group": "build",
 			"isBackground": true,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"options": {
+				"env": {
+					"DATABASE_URL": "postgresql://werewolf_user:werewolf_password@localhost:5432/werewolf_game"
+				}
+			}
 		},
 		{
 			"label": "Start Frontend Dev Server",
@@ -23,7 +28,10 @@
 			"command": "npm",
 			"args": ["start"],
 			"options": {
-				"cwd": "${workspaceFolder}/frontend"
+				"cwd": "${workspaceFolder}/frontend",
+				"env": {
+					"REACT_APP_API_URL": "http://localhost:8000"
+				}
 			},
 			"group": "build",
 			"isBackground": true,

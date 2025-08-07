@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import './index.css';
 import GameLobby from './components/GameLobby';
 import GameRoom from './components/GameRoom';
+import GamesList from './components/GamesList';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 export interface Player {
   id: number;
-  name: string;
+  player_name: string;
   is_alive: boolean;
   is_god: boolean;
   role?: string;
@@ -29,10 +30,12 @@ const AppContent: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [currentView, setCurrentView] = useState<'lobby' | 'game' | 'history'>('lobby');
 
   const handleGameCreated = (id: string, state: GameState) => {
     setGameId(id);
     setGameState(state);
+    setCurrentView('game');
   };
 
   const handleGameStateUpdate = (state: GameState) => {
@@ -42,10 +45,19 @@ const AppContent: React.FC = () => {
   const handleLeaveGame = () => {
     setGameId(null);
     setGameState(null);
+    setCurrentView('lobby');
   };
 
   const handleLoginSuccess = () => {
     // Login successful, component will re-render with isAuthenticated = true
+  };
+
+  const handleViewHistory = () => {
+    setCurrentView('history');
+  };
+
+  const handleBackToLobby = () => {
+    setCurrentView('lobby');
   };
 
   if (loading) {
@@ -62,12 +74,10 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="App">
-      <header className="app-header">
-        <UserProfile />
-      </header>
-      
       <main className="app-main">
-        {!gameId ? (
+        {currentView === 'history' ? (
+          <GamesList onBack={handleBackToLobby} />
+        ) : !gameId ? (
           <GameLobby onGameCreated={handleGameCreated} />
         ) : (
           <GameRoom

@@ -46,7 +46,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
         {players.map(player => (
           <div key={player.id} className={getPlayerCardClass(player)}>
             <div className="player-name">
-              {getPlayerStatusIcon(player)} {player.name}
+              {getPlayerStatusIcon(player)} {player.player_name}
             </div>
             <div className="player-status">
               {player.is_god ? 'Moderator (AI)' : 

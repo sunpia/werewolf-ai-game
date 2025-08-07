@@ -1,0 +1,26 @@
+# Production Environment Configuration
+# Copy this file to terraform.tfvars and fill in your values
+
+aws_region = "us-east-1"
+
+# Backend Docker image (update with your ECR repository or Docker Hub image)
+backend_image = "your-account.dkr.ecr.us-east-1.amazonaws.com/werewolf-backend:latest"
+
+# Database configuration
+db_name     = "werewolf_game"
+db_username = "werewolf_user"
+db_password = "use-a-very-secure-password-here"
+
+# API Keys (get these from your service providers)
+openai_api_key = "sk-your-openai-api-key-here"
+
+# JWT Secret (generate a secure random string)
+jwt_secret_key = "your-very-secure-jwt-secret-key-here"
+
+# Google OAuth (get these from Google Console)
+google_client_id     = "your-google-client-id.googleusercontent.com"
+google_client_secret = "your-google-client-secret"
+
+# Domain configuration (recommended for production)
+domain_names = ["werewolf.yourdomain.com"]
+acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"

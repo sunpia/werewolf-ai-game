@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gemini-2.5-flash-lite"
+    openai_model: str = "gpt-4.1-nano"
     
     # Server Configuration
     host: str = "0.0.0.0"
@@ -21,24 +21,38 @@ class Settings(BaseSettings):
     log_level: str = "info"
     
     # CORS Configuration
-    allowed_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     
     # Game Configuration
     min_players: int = 6
     max_players: int = 15
     
     # Authentication Configuration
-    secret_key: str = "your-secret-key-change-this-in-production"
+    jwt_secret_key: str = "your-secret-key-change-this-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30 * 24 * 60  # 30 days
+    
+    # Database Configuration
+    database_url: Optional[str] = None
+    postgres_db: Optional[str] = None
+    postgres_user: Optional[str] = None
+    postgres_password: Optional[str] = None
     
     # Google OAuth Configuration
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
     
+    # React App Google Client ID (for frontend)
+    react_app_google_client_id: Optional[str] = None
+    
     # GitHub OAuth Configuration (optional)
     github_client_id: Optional[str] = None
     github_client_secret: Optional[str] = None
+    
+    @property
+    def jwt_secret(self) -> str:
+        """Get JWT secret key."""
+        return self.jwt_secret_key
     
     class Config:
         env_file = ".env"

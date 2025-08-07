@@ -4,6 +4,7 @@ import { GameState, Player } from '../App';
 import PlayerList from './PlayerList';
 import ChatArea from './ChatArea';
 import GameStatus from './GameStatus';
+import UserProfile from './UserProfile';
 
 interface GameRoomProps {
   gameId: string;
@@ -27,6 +28,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   const [players, setPlayers] = useState<Player[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const [startButtonClicked, setStartButtonClicked] = useState<boolean>(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const onGameStateUpdateRef = useRef(onGameStateUpdate);
 
@@ -114,7 +116,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
     // Fetch initial players
     const fetchPlayersLocal = async () => {
       try {
-        const response = await axios.get(`/api/games/${gameId}/players`);
+        const response = await axios.get(`/api/v1/games/${gameId}/players`);
         setPlayers(response.data.players);
       } catch (error) {
         console.error('Failed to fetch players:', error);
@@ -123,7 +125,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
 
     // Set up Server-Sent Events
     const setupEventStreamLocal = () => {
-      const eventSource = new EventSource(`/api/games/${gameId}/events`);
+      const eventSource = new EventSource(`/api/v1/games/${gameId}/events`);
       eventSourceRef.current = eventSource;
 
       eventSource.onmessage = (event) => {
@@ -158,9 +160,12 @@ const GameRoom: React.FC<GameRoomProps> = ({
 
   const handleStartGame = async () => {
     try {
-      await axios.post(`/api/games/${gameId}/start`);
+      setStartButtonClicked(true);
+      await axios.post(`/api/v1/games/${gameId}/start`);
     } catch (error) {
       console.error('Failed to start game:', error);
+      // Reset the button state if there's an error
+      setStartButtonClicked(false);
     }
   };
 
@@ -208,22 +213,28 @@ const GameRoom: React.FC<GameRoomProps> = ({
           {!gameStarted && (
             <button 
               onClick={handleStartGame}
+              disabled={startButtonClicked}
               className="create-game-button"
               style={{ 
                 padding: '12px 16px', 
                 fontSize: '14px',
                 width: '100%',
-                background: 'linear-gradient(135deg, #4caf50, #45a049)',
+                background: startButtonClicked 
+                  ? 'linear-gradient(135deg, #ff9800, #f57c00)'
+                  : 'linear-gradient(135deg, #4caf50, #45a049)',
                 border: 'none',
                 borderRadius: '8px',
                 color: 'white',
-                cursor: 'pointer',
+                cursor: startButtonClicked ? 'default' : 'pointer',
                 fontWeight: '600',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '0 4px 16px rgba(76, 175, 80, 0.3)'
+                boxShadow: startButtonClicked 
+                  ? '0 4px 16px rgba(255, 152, 0, 0.3)'
+                  : '0 4px 16px rgba(76, 175, 80, 0.3)',
+                opacity: startButtonClicked ? 0.8 : 1
               }}
             >
-              🚀 Start AI Battle
+              {startButtonClicked ? '⚙️ Init Game' : '🚀 Start Game'}
             </button>
           )}
         </div>
@@ -232,6 +243,29 @@ const GameRoom: React.FC<GameRoomProps> = ({
       </div>
       
       <div className="main-game-area">
+        <div className="game-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 24px',
+          marginBottom: '24px',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)'
+        }}>
+          <h1 style={{
+            margin: 0,
+            fontSize: '1.5em',
+            fontWeight: '600',
+            color: 'rgba(255, 255, 255, 0.95)'
+          }}>
+            Game Room
+          </h1>
+          <UserProfile />
+        </div>
+        
         <GameStatus gameState={gameState} />
         
         <ChatArea

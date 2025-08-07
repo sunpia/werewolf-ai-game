@@ -1,0 +1,86 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: werewolf_postgres
+    environment:
+      POSTGRES_DB: werewolf_game
+      POSTGRES_USER: werewolf_user
+      POSTGRES_PASSWORD: werewolf_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - werewolf_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U werewolf_user -d werewolf_game"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      target: production
+      dockerfile: Dockerfile
+    container_name: werewolf_backend
+    environment:
+      - DATABASE_URL=postgresql://werewolf_user:werewolf_password@postgres:5432/werewolf_game
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for live reloading
+      - ./:/app
+      # Exclude Python cache directories to avoid permission issues
+      - /app/__pycache__
+      - /app/src/__pycache__
+      - /app/.git
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - werewolf_network
+    restart: unless-stopped
+    env_file:
+      - ./.env  # Load environment variables from .env file
+    # Use uvicorn with reload for development
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src --reload-dir /app
+
+  # Frontend (optional - for development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: werewolf_frontend
+    env_file:
+      - ./frontend/.env
+    environment:
+      - REACT_APP_API_URL=http://backend:8000
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - FAST_REFRESH=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - werewolf_network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  werewolf_network:
+    driver: bridge

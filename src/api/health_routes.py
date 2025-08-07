@@ -2,22 +2,19 @@
 
 from fastapi import APIRouter
 
-from ..services.game_service import GameService
+from .game import get_game_service
 
-router = APIRouter(prefix="/api", tags=["health"])
-
-# Game service instance (will be injected later)
-game_service: GameService = None
+router = APIRouter(tags=["health"])
 
 
-def set_game_service(service: GameService):
-    """Set the game service instance."""
-    global game_service
-    game_service = service
-
-
+@router.get("/")
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-    active_games = game_service.get_active_games_count() if game_service else 0
+    try:
+        game_service = get_game_service()
+        active_games = game_service.get_active_games_count()
+    except:
+        active_games = 0
+    
     return {"status": "healthy", "active_games": active_games}
